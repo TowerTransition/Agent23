@@ -131,6 +131,7 @@ class TextGenerator:
     def _call_local_llm(self, prompt: str, max_tokens: int, temperature: float) -> str:
         """
         Call a local LLM endpoint using OpenAI-compatible API format.
+        Falls back to Ollama native API format if OpenAI-compatible endpoint fails.
         
         Args:
             prompt: User prompt
@@ -140,8 +141,17 @@ class TextGenerator:
         Returns:
             Generated text
         """
-        # Prepare the request payload (OpenAI-compatible format)
-        payload = {
+        # Prepare headers
+        headers = {
+            "Content-Type": "application/json"
+        }
+        
+        # Add API key if provided
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        
+        # Try OpenAI-compatible format first
+        payload_openai = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": self._get_system_message()},
@@ -152,35 +162,92 @@ class TextGenerator:
             "n": 1
         }
         
-        # Prepare headers
-        headers = {
-            "Content-Type": "application/json"
-        }
+        try:
+            # Make the request
+            response = requests.post(
+                self.local_llm_endpoint,
+                json=payload_openai,
+                headers=headers,
+                timeout=120  # 2 minute timeout for local LLM
+            )
+            
+            # Check for errors
+            response.raise_for_status()
+            
+            # Parse response (OpenAI-compatible format)
+            response_data = response.json()
+            
+            # Extract generated text
+            if "choices" in response_data and len(response_data["choices"]) > 0:
+                generated_text = response_data["choices"][0]["message"]["content"].strip()
+                return generated_text
+            else:
+                raise ValueError(f"Unexpected response format from local LLM: {response_data}")
+                
+        except requests.exceptions.HTTPError as e:
+            # If 404, try Ollama native API format
+            if e.response.status_code == 404:
+                logger.info("OpenAI-compatible endpoint not found, trying Ollama native API...")
+                return self._call_ollama_native(prompt, max_tokens, temperature)
+            else:
+                raise
+        except Exception as e:
+            # If other error, try Ollama native API as fallback
+            logger.warning(f"OpenAI-compatible API failed: {e}, trying Ollama native API...")
+            return self._call_ollama_native(prompt, max_tokens, temperature)
+    
+    def _call_ollama_native(self, prompt: str, max_tokens: int, temperature: float) -> str:
+        """
+        Call Ollama using its native API format.
         
-        # Add API key if provided
-        if self.api_key:
-            headers["Authorization"] = f"Bearer {self.api_key}"
+        Args:
+            prompt: User prompt (includes system message)
+            max_tokens: Maximum tokens to generate
+            temperature: Temperature parameter
+            
+        Returns:
+            Generated text
+        """
+        # Convert endpoint to Ollama native API endpoint
+        ollama_endpoint = self.local_llm_endpoint.replace('/v1/chat/completions', '/api/chat')
+        if ollama_endpoint == self.local_llm_endpoint:
+            # If endpoint doesn't contain /v1/chat/completions, assume it's already Ollama format
+            ollama_endpoint = self.local_llm_endpoint
+        
+        # Prepare Ollama native API payload
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": self._get_system_message()},
+                {"role": "user", "content": prompt}
+            ],
+            "stream": False,
+            "options": {
+                "temperature": temperature,
+                "num_predict": max_tokens
+            }
+        }
         
         # Make the request
         response = requests.post(
-            self.local_llm_endpoint,
+            ollama_endpoint,
             json=payload,
-            headers=headers,
-            timeout=120  # 2 minute timeout for local LLM
+            headers={"Content-Type": "application/json"},
+            timeout=120
         )
         
         # Check for errors
         response.raise_for_status()
         
-        # Parse response (OpenAI-compatible format)
+        # Parse Ollama response format
         response_data = response.json()
         
-        # Extract generated text
-        if "choices" in response_data and len(response_data["choices"]) > 0:
-            generated_text = response_data["choices"][0]["message"]["content"].strip()
+        # Extract generated text from Ollama format
+        if "message" in response_data and "content" in response_data["message"]:
+            generated_text = response_data["message"]["content"].strip()
             return generated_text
         else:
-            raise ValueError(f"Unexpected response format from local LLM: {response_data}")
+            raise ValueError(f"Unexpected Ollama response format: {response_data}")
     
     def _build_prompt_from_context(self, context: Dict[str, Any], platform: str) -> str:
         """

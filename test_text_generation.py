@@ -80,31 +80,27 @@ except Exception as e:
 
 print()
 
-# Create mock trend data
+# Create mock trend data (single trend that will be used for all platforms)
 print("Step 3: Creating mock trend data...")
-mock_trends = {
-    'twitter': [
-        {'hashtag': '#AIHealthcare', 'volume': 5000, 'description': 'AI applications in healthcare trending'}
-    ],
-    'instagram': [
-        {'hashtag': '#MachineLearning', 'volume': 3000, 'description': 'Machine learning innovations'}
-    ],
-    'linkedin': [
-        {'topic': 'AI in Business', 'engagement': 2000, 'description': 'AI transforming business operations'}
-    ],
-    'facebook': [
-        {'topic': 'AI Solving Real-World Problems', 'engagement': 5000, 'description': 'AI helping solve climate change'}
-    ]
+mock_trend = {
+    'title': 'AI Solving Real-World Healthcare Problems',
+    'description': 'AI applications in healthcare are revolutionizing patient care and medical diagnosis',
+    'hashtags': ['AIHealthcare', 'MachineLearning', 'HealthTech', 'AIforGood'],
+    'platform': 'all',
+    'engagement': 5000,
+    'trending': True
 }
 print("✓ Mock trend data created")
+print(f"  Title: {mock_trend['title']}")
+print(f"  Hashtags: {', '.join(mock_trend['hashtags'])}")
 print()
 
 # Generate content
 print("Step 4: Generating content for all platforms...")
 print("-" * 60)
 try:
-    content = agent.create_content(
-        trend_data=mock_trends,
+    content = agent.generate_multi_platform_content(
+        trend_data=mock_trend,
         platforms=['twitter', 'instagram', 'linkedin', 'facebook']
     )
     
@@ -117,12 +113,26 @@ try:
         print(f"PLATFORM: {platform.upper()}")
         print("=" * 60)
         
-        text = post_data.get('text', '')
+        # Check for errors first
+        if 'error' in post_data:
+            print(f"\n✗ Error: {post_data['error']}")
+            print()
+            continue
+        
+        # Get text content (different keys for different platforms)
+        text = post_data.get('text', '') or post_data.get('caption', '') or post_data.get('content', '')
         if text:
             print("\nGenerated Text:")
             print("-" * 60)
             print(text)
             print("-" * 60)
+        else:
+            print("\n⚠ No text content generated")
+        
+        # Show hashtags if available
+        hashtags = post_data.get('hashtags', [])
+        if hashtags:
+            print(f"\nHashtags: {', '.join(hashtags)}")
         
         # Show image prompt if available
         image_prompt = post_data.get('image_prompt', '')

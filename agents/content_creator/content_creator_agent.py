@@ -73,7 +73,12 @@ class ContentCreatorAgent:
                 self.logger.warning("Image generation enabled but no Stability API key provided.")
                 self.image_gen_enabled = False
             else:
-                self.image_generator = ImageGenerator(api_key=self.stability_api_key, cache_dir=cache_dir)
+                # ImageGenerator gets API key from environment variable automatically
+                # Use cache_dir as output_dir for generated images
+                self.image_generator = ImageGenerator(
+                    enabled=True,
+                    output_dir=cache_dir if cache_dir else "generated_images"
+                )
         
         # Initialize platform formatter
         self.platform_formatter = PlatformFormatter(self.brand_guidelines)

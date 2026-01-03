@@ -19,6 +19,11 @@ print()
 # Check LLM endpoint
 llm_endpoint = os.getenv('LOCAL_LLM_ENDPOINT', 'http://localhost:11434/v1/chat/completions')
 print(f"LLM Endpoint: {llm_endpoint}")
+
+# Set it in environment if not already set (for TextGenerator)
+if not os.getenv('LOCAL_LLM_ENDPOINT'):
+    os.environ['LOCAL_LLM_ENDPOINT'] = llm_endpoint
+    print(f"Set LOCAL_LLM_ENDPOINT to: {llm_endpoint}")
 print()
 
 # Test LLM connection first
@@ -60,11 +65,12 @@ print("Step 2: Testing Content Creator Agent...")
 try:
     from agents.content_creator.content_creator_agent import ContentCreatorAgent
     
-    # Initialize the agent
+    # Initialize the agent (disable image generation since we don't have API key)
     agent = ContentCreatorAgent(
-        brand_guidelines_path='agents/content_creator/example_brand_guidelines.json'
+        brand_guidelines_path='agents/content_creator/example_brand_guidelines.json',
+        image_generation_enabled=False  # Disable since we don't have Stability API key
     )
-    print("✓ ContentCreatorAgent initialized")
+    print("✓ ContentCreatorAgent initialized (image generation disabled)")
     
 except Exception as e:
     print(f"✗ Failed to initialize agent: {e}")

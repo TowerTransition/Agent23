@@ -61,14 +61,15 @@ python api_setup.py --save-report
 
 Alternatively, you can create the `.env` file manually using this template:
 ```
-# OpenAI API (optional - use if not using local LLM)
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_MODEL=gpt-4
+# Local LLM Configuration (REQUIRED for Google Cloud deployment)
+# Set this to your local LLM endpoint (e.g., Ollama, vLLM, or TinyLlama)
+LOCAL_LLM_ENDPOINT=http://localhost:11434/v1/chat/completions  # For Ollama
+# LOCAL_LLM_ENDPOINT=http://localhost:8000/v1/chat/completions  # For vLLM
+LOCAL_LLM_API_KEY=not-needed-for-local  # Optional, most local LLMs don't require this
 
-# Local LLM Configuration (for Google Cloud or self-hosted)
-# If LOCAL_LLM_ENDPOINT is set, it will be used instead of OpenAI API
-LOCAL_LLM_ENDPOINT=http://your-llm-endpoint:8000/v1/chat/completions
-LOCAL_LLM_API_KEY=optional_api_key_for_local_llm  # Optional, some endpoints don't require it
+# OpenAI API (OPTIONAL - only if not using local LLM)
+# OPENAI_API_KEY=your_openai_api_key
+# OPENAI_MODEL=gpt-4
 
 # Stability AI API
 STABILITY_API_KEY=your_stability_api_key

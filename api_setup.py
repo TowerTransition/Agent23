@@ -49,52 +49,65 @@ class APISetup:
         
         self.logger.info("API Setup initialized")
     
+    def validate_local_llm_api(self) -> bool:
+        """
+        Validate Local LLM API endpoint (OpenAI-compatible).
+        
+        Returns:
+            True if endpoint is accessible and working, False otherwise
+        """
+        endpoint = os.getenv("LOCAL_LLM_ENDPOINT")
+        if not endpoint:
+            self.logger.warning("LOCAL_LLM_ENDPOINT not found. Using local LLM is recommended for Google Cloud deployment.")
+            return False
+        
+        try:
+            self.logger.info(f"Testing Local LLM API connection at {endpoint}...")
+            
+            # Get API key if needed
+            api_key = os.getenv("LOCAL_LLM_API_KEY")
+            headers = {"Content-Type": "application/json"}
+            if api_key and api_key != "not-needed-for-local":
+                headers["Authorization"] = f"Bearer {api_key}"
+            
+            # Test with a simple chat completion request
+            test_payload = {
+                "model": "tinyllama",  # Default model name for TinyLlama
+                "messages": [{"role": "user", "content": "test"}],
+                "max_tokens": 10
+            }
+            
+            response = requests.post(
+                endpoint,
+                headers=headers,
+                json=test_payload,
+                timeout=10
+            )
+            
+            if response.status_code == 200:
+                self.logger.info(f"Local LLM API connection successful at {endpoint}.")
+                return True
+            else:
+                self.logger.error(f"Local LLM API error: {response.status_code} - {response.text}")
+                return False
+                
+        except requests.exceptions.ConnectionError:
+            self.logger.error(f"Could not connect to Local LLM endpoint: {endpoint}. Is the LLM server running?")
+            return False
+        except Exception as e:
+            self.logger.error(f"Error validating Local LLM API: {e}")
+            return False
+    
     def validate_openai_api(self) -> bool:
         """
-        Validate OpenAI API credentials.
+        Validate OpenAI API credentials (optional - for backward compatibility).
         
         Returns:
             True if API key is valid and working, False otherwise
         """
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
-            self.logger.error("OpenAI API key not found. Set OPENAI_API_KEY in .env file.")
-            return False
-        
-        try:
-            self.logger.info("Testing OpenAI API connection...")
-            headers = {
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            }
-            
-            # Use a simple request to check API connectivity
-            response = requests.get(
-                "https://api.openai.com/v1/models",
-                headers=headers
-            )
-            
-            if response.status_code == 200:
-                models = response.json()
-                model_count = len(models.get("data", []))
-                self.logger.info(f"OpenAI API connection successful. Found {model_count} models.")
-                
-                # Check if specified model exists
-                specified_model = os.getenv("OPENAI_MODEL", "gpt-4")
-                model_ids = [model["id"] for model in models.get("data", [])]
-                
-                if specified_model in model_ids:
-                    self.logger.info(f"Specified model '{specified_model}' is available.")
-                else:
-                    self.logger.warning(f"Specified model '{specified_model}' not found. Available models include: {', '.join(model_ids[:5])}...")
-                
-                return True
-            else:
-                self.logger.error(f"OpenAI API error: {response.status_code} - {response.text}")
-                return False
-                
-        except Exception as e:
-            self.logger.error(f"Error validating OpenAI API: {e}")
+            self.logger.info("OpenAI API key not found. This is optional if using local LLM.")
             return False
     
     def validate_stability_api(self) -> bool:
@@ -375,7 +388,8 @@ class APISetup:
         results = {}
         
         # Core APIs
-        results["openai"] = self.validate_openai_api()
+        results["local_llm"] = self.validate_local_llm_api()
+        results["openai"] = self.validate_openai_api()  # Optional, for backward compatibility
         results["stability"] = self.validate_stability_api()
         
         # Social platforms
@@ -405,7 +419,7 @@ class APISetup:
         
         # Group by category
         categories = {
-            "Content Generation": ["openai", "stability"],
+            "Content Generation": ["local_llm", "openai", "stability"],
             "Social Platforms": ["twitter", "instagram", "linkedin"],
             "Optional Services": ["ayrshare", "aws_s3"]
         }
@@ -422,19 +436,21 @@ class APISetup:
             summary += "\n"
         
         # Overall assessment
-        core_apis = ["openai", "stability"]
+        # Local LLM is preferred, but OpenAI is optional for backward compatibility
+        llm_valid = results.get("local_llm", False) or results.get("openai", False)
+        stability_valid = results.get("stability", False)
         social_apis = ["twitter", "instagram", "linkedin"]
-        
-        core_valid = all(results.get(api, False) for api in core_apis)
         any_social_valid = any(results.get(api, False) for api in social_apis)
         
         summary += "Overall Assessment:\n"
         summary += "-----------------\n"
         
-        if core_valid and any_social_valid:
+        if llm_valid and stability_valid and any_social_valid:
             summary += "✓ System is READY to run! All required APIs are connected.\n"
-        elif not core_valid:
-            summary += "✗ CORE APIs are not properly connected. Fix OpenAI and Stability AI configurations.\n"
+        elif not llm_valid:
+            summary += "✗ LLM API is not connected. Set LOCAL_LLM_ENDPOINT (recommended) or OPENAI_API_KEY.\n"
+        elif not stability_valid:
+            summary += "⚠ Stability AI not connected. Image generation will be disabled.\n"
         elif not any_social_valid:
             summary += "✗ NO SOCIAL PLATFORM APIs are connected. At least one is required for posting.\n"
         else:
@@ -554,13 +570,12 @@ if __name__ == "__main__":
             print(f"\nError: {response.get('error')}")
     
     # Exit code based on validation results
-    core_apis = ["openai", "stability"]
+    # Local LLM is preferred, but OpenAI is optional for backward compatibility
+    llm_valid = results.get("local_llm", False) or results.get("openai", False)
     social_apis = ["twitter", "instagram", "linkedin"]
-    
-    core_valid = all(results.get(api, False) for api in core_apis)
     any_social_valid = any(results.get(api, False) for api in social_apis)
     
-    if core_valid and any_social_valid:
+    if llm_valid and any_social_valid:
         print("\nAPI setup is complete and ready to use!")
         sys.exit(0)
     else:

@@ -39,23 +39,21 @@ This will:
 
 ## Step 4: Choose Your LLM Option
 
-### Option A: Ollama (Easiest - CPU-based)
+### Option A: Ollama with TinyLlama 1.1B (Recommended - CPU-based)
 
 ```bash
 # Install Ollama
 curl -fsSL https://ollama.com/install.sh | sh
 
-# Download a model (7B models work on 16GB RAM)
-ollama pull llama2:7b
-# OR
-ollama pull mistral:7b
+# Download TinyLlama 1.1B model (perfect for your instance)
+ollama pull tinyllama
 
 # Start Ollama server
 ollama serve
 
 # In another terminal, test it:
 curl http://localhost:11434/api/generate -d '{
-  "model": "llama2",
+  "model": "tinyllama",
   "prompt": "Hello, how are you?",
   "stream": false
 }'
@@ -64,6 +62,7 @@ curl http://localhost:11434/api/generate -d '{
 Then update `.env`:
 ```env
 LOCAL_LLM_ENDPOINT=http://localhost:11434/v1/chat/completions
+LOCAL_LLM_API_KEY=not-needed-for-local
 ```
 
 ### Option B: Create GPU Instance for vLLM (Better Performance)

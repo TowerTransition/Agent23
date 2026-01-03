@@ -147,10 +147,13 @@ class Orchestrator:
             )
             
             # Initialize ContentCreatorAgent
+            # Use local LLM endpoint if available, otherwise fall back to OpenAI (for backward compatibility)
+            llm_api_key = os.environ.get("LOCAL_LLM_API_KEY") or os.environ.get("OPENAI_API_KEY")
             self.content_creator = ContentCreatorAgent(
-                brand_guidelines=self._load_brand_guidelines(),
-                openai_api_key=os.environ.get("OPENAI_API_KEY"),
-                output_dir=self.content_dir
+                brand_guidelines_path=self.brand_file,
+                llm_api_key=llm_api_key,
+                stability_api_key=os.environ.get("STABILITY_API_KEY"),
+                cache_dir=self.cache_dir
             )
             
             # Initialize SchedulerAgent

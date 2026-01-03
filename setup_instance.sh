@@ -45,7 +45,8 @@ if [ ! -f .env ]; then
     echo "Step 6: Creating .env template..."
     cat > .env << 'EOF'
 # Local LLM Configuration
-LOCAL_LLM_ENDPOINT=http://localhost:8000/v1/chat/completions
+# Will try OpenAI-compatible endpoint first, auto-fallback to native API if needed
+LOCAL_LLM_ENDPOINT=http://localhost:11434/v1/chat/completions
 LOCAL_LLM_API_KEY=not-needed-for-local
 
 # Social Media API Keys (REPLACE WITH YOUR ACTUAL KEYS)

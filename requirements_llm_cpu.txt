@@ -1,0 +1,8 @@
+# Additional requirements for CPU-based LLM server (optional)
+# Only needed if using setup_cpu_llm.py
+
+flask>=2.3.0
+transformers>=4.35.0
+torch>=2.0.0
+accelerate>=0.24.0
+

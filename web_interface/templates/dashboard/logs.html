@@ -1,0 +1,183 @@
+{% extends 'base.html' %}
+
+{% block title %}Logs & Stats - AI Agents{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-file-text"></i> Logs & Stats</h1>
+</div>
+
+<!-- Summary Stats -->
+<div class="row mb-4">
+    <div class="col-md-4">
+        <div class="card border-danger">
+            <div class="card-body text-center">
+                <h3 class="text-danger">{{ total_errors }}</h3>
+                <p class="text-muted mb-0">Total Errors</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-warning">
+            <div class="card-body text-center">
+                <h3 class="text-warning">{{ total_warnings }}</h3>
+                <p class="text-muted mb-0">Total Warnings</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card border-info">
+            <div class="card-body text-center">
+                <h3 class="text-info">{{ avg_engagement }}%</h3>
+                <p class="text-muted mb-0">Avg Engagement Rate</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Platform</label>
+                <select name="platform" class="form-select">
+                    <option value="">All Platforms</option>
+                    {% for code, name in platforms %}
+                        <option value="{{ code }}" {% if platform_filter == code %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Log Type</label>
+                <select name="log_type" class="form-select">
+                    <option value="">All Types</option>
+                    {% for code, name in log_types %}
+                        <option value="{{ code }}" {% if log_type_filter == code %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">Filter</button>
+                <a href="{% url 'logs_stats' %}" class="btn btn-outline-secondary">Clear</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Logs -->
+    <div class="col-md-7 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-journal-text"></i> Recent Logs</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Platform</th>
+                                <th>Type</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for log in log_page_obj %}
+                            <tr>
+                                <td><small>{{ log.created_at|date:"H:i:s" }}</small></td>
+                                <td><span class="badge bg-{{ log.platform }}">{{ log.platform|title }}</span></td>
+                                <td>
+                                    {% if log.log_type == 'error' %}
+                                        <span class="badge bg-danger">Error</span>
+                                    {% elif log.log_type == 'warning' %}
+                                        <span class="badge bg-warning">Warning</span>
+                                    {% else %}
+                                        <span class="badge bg-info">{{ log.log_type|title }}</span>
+                                    {% endif %}
+                                </td>
+                                <td><small>{{ log.message|truncatewords:15 }}</small></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-3">No logs found</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                {% if log_page_obj.has_other_pages %}
+                <nav aria-label="Log pagination">
+                    <ul class="pagination pagination-sm justify-content-center">
+                        {% if log_page_obj.has_previous %}
+                            <li class="page-item"><a class="page-link" href="?log_page={{ log_page_obj.previous_page_number }}">Previous</a></li>
+                        {% endif %}
+                        <li class="page-item active"><span class="page-link">{{ log_page_obj.number }}</span></li>
+                        {% if log_page_obj.has_next %}
+                            <li class="page-item"><a class="page-link" href="?log_page={{ log_page_obj.next_page_number }}">Next</a></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    
+    <!-- Engagement Stats -->
+    <div class="col-md-5 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0"><i class="bi bi-bar-chart"></i> Engagement Stats</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>Platform</th>
+                                <th>Likes</th>
+                                <th>Shares</th>
+                                <th>Engagement</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for stat in stats_page_obj %}
+                            <tr>
+                                <td><span class="badge bg-{{ stat.platform }}">{{ stat.platform|title }}</span></td>
+                                <td>{{ stat.likes }}</td>
+                                <td>{{ stat.shares }}</td>
+                                <td><strong>{{ stat.engagement_rate|floatformat:1 }}%</strong></td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-3">No stats available</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                {% if stats_page_obj.has_other_pages %}
+                <nav aria-label="Stats pagination">
+                    <ul class="pagination pagination-sm justify-content-center">
+                        {% if stats_page_obj.has_previous %}
+                            <li class="page-item"><a class="page-link" href="?stats_page={{ stats_page_obj.previous_page_number }}">Previous</a></li>
+                        {% endif %}
+                        <li class="page-item active"><span class="page-link">{{ stats_page_obj.number }}</span></li>
+                        {% if stats_page_obj.has_next %}
+                            <li class="page-item"><a class="page-link" href="?stats_page={{ stats_page_obj.next_page_number }}">Next</a></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

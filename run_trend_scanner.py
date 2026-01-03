@@ -36,13 +36,14 @@ def run_once():
     
     # Print with formatting
     print("\n" + "="*80)
-    print("SOCIAL MEDIA TREND REPORT")
+    print("SOCIAL MEDIA TREND REPORT - AI SOLVING REAL-WORLD PROBLEMS")
     print("="*80)
     print(report)
     print("\n" + "="*80)
     print("Report generated at:", time.strftime("%Y-%m-%d %H:%M:%S"))
     print("This report follows the TrendScannerAgent MDC format, focusing on 2-3 key trends per platform.")
-    print("Use this data to guide your content creation strategy for maximum engagement.")
+    print("Trends are focused on AI solving real-world problems, artificial intelligence applications,")
+    print("and machine learning innovations. Use this data to guide your content creation strategy.")
     print("="*80)
     
     logger.info("TrendScannerAgent run completed")

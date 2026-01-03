@@ -8,9 +8,11 @@ to post content, handle authentication, and process responses.
 from .twitter_poster import TwitterPoster
 from .instagram_poster import InstagramPoster
 from .linkedin_poster import LinkedInPoster
+from .facebook_poster import FacebookPoster
 
 __all__ = [
     'TwitterPoster',
     'InstagramPoster',
-    'LinkedInPoster'
+    'LinkedInPoster',
+    'FacebookPoster'
 ] 

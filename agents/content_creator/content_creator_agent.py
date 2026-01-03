@@ -29,7 +29,7 @@ class ContentCreatorAgent:
     def __init__(
         self,
         brand_guidelines_path: str = None,
-        openai_api_key: str = None,
+        llm_api_key: str = None,
         stability_api_key: str = None,
         image_generation_enabled: bool = True,
         custom_filter_words: List[str] = None,
@@ -40,7 +40,8 @@ class ContentCreatorAgent:
         
         Args:
             brand_guidelines_path: Path to JSON file containing brand guidelines
-            openai_api_key: OpenAI API key (defaults to OPENAI_API_KEY env var)
+            llm_api_key: Optional API key for local LLM (defaults to LOCAL_LLM_API_KEY env var).
+                       Not required if local LLM doesn't need authentication.
             stability_api_key: Stability AI API key (defaults to STABILITY_API_KEY env var)
             image_generation_enabled: Whether to generate images
             custom_filter_words: List of words to filter from content
@@ -49,11 +50,22 @@ class ContentCreatorAgent:
         self.logger = logging.getLogger(__name__)
         
         # Set API keys
-        self.openai_api_key = openai_api_key or os.environ.get("OPENAI_API_KEY")
+        # LLM API key is optional for local LLM (some endpoints don't require it)
+        self.llm_api_key = llm_api_key or os.environ.get("LOCAL_LLM_API_KEY")
         self.stability_api_key = stability_api_key or os.environ.get("STABILITY_API_KEY")
         
+        # Load brand guidelines first (needed for TextGenerator)
+        self.guidelines_manager = BrandGuidelinesManager(guidelines_path=brand_guidelines_path)
+        self.brand_guidelines = self.guidelines_manager.get_guidelines()
+        
         # Initialize components
-        self.text_generator = TextGenerator(api_key=self.openai_api_key)
+        # Get local LLM endpoint from environment if available
+        local_llm_endpoint = os.environ.get("LOCAL_LLM_ENDPOINT")
+        self.text_generator = TextGenerator(
+            brand_manager=self.guidelines_manager,
+            api_key=self.llm_api_key,
+            local_llm_endpoint=local_llm_endpoint
+        )
         self.image_gen_enabled = image_generation_enabled
         
         if self.image_gen_enabled:
@@ -63,14 +75,10 @@ class ContentCreatorAgent:
             else:
                 self.image_generator = ImageGenerator(api_key=self.stability_api_key, cache_dir=cache_dir)
         
-        # Load brand guidelines
-        self.guidelines_manager = BrandGuidelinesManager(guidelines_path=brand_guidelines_path)
-        self.brand_guidelines = self.guidelines_manager.get_guidelines()
-        
         # Initialize platform formatter
         self.platform_formatter = PlatformFormatter(self.brand_guidelines)
         
-        # Initialize content moderator
+        # Initialize content moderator (will auto-detect local LLM usage)
         self.content_moderator = ContentModerator(custom_filter_words=custom_filter_words)
         
         # Create cache directory if it doesn't exist

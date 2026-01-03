@@ -1,8 +1,10 @@
 """
 TrendScannerAgent - Monitors social media platforms for trending topics and content formats.
 
-This agent periodically scans Twitter/X, Instagram, and LinkedIn to identify trending
-hashtags, topics, and content formats relevant to astronomy, physics, and education.
+This agent periodically scans Twitter/X, Instagram, LinkedIn, and Facebook to identify trending
+hashtags, topics, and content formats relevant to AI solving real-world problems, artificial
+intelligence applications, and machine learning innovations. It also identifies the highest
+trending topic for Facebook posting priority.
 """
 
 import time
@@ -14,6 +16,7 @@ from .twitter_scanner import TwitterScanner
 from .instagram_scanner import InstagramScanner
 from .linkedin_scanner import LinkedInScanner
 from .cache_manager import CacheManager
+from .article_searcher import ArticleSearcher
 
 # Configure logging
 logging.basicConfig(
@@ -35,15 +38,17 @@ class TrendScannerAgent:
         
         Args:
             cache_duration: Time in seconds before refreshing trends data
-            relevant_topics: List of topics of interest (astronomy, physics, etc.)
+            relevant_topics: List of topics of interest (AI solving real-world problems, etc.)
         """
         self.cache_manager = CacheManager()
         self.cache_duration = cache_duration
         
-        # Initialize default relevant topics if none provided
+        # Initialize default relevant topics if none provided - focused on AI solving real-world problems
         self.relevant_topics = relevant_topics or [
-            "astronomy", "space", "physics", "education", "science", 
-            "telescope", "nasa", "spacex", "astrophotography", "cosmos"
+            "AI solving real world problems", "artificial intelligence", "machine learning",
+            "AI applications", "AI healthcare", "AI education", "AI business",
+            "AI environment", "AI innovation", "ML real world", "AI tools",
+            "AI use cases", "AI success stories", "AI for good"
         ]
         
         # Initialize platform scanners
@@ -51,13 +56,19 @@ class TrendScannerAgent:
         self.instagram_scanner = InstagramScanner(self.relevant_topics)
         self.linkedin_scanner = LinkedInScanner(self.relevant_topics)
         
+        # Initialize article searcher for AI articles
+        self.article_searcher = ArticleSearcher(search_query="AI solving real world problems")
+        
         logger.info("TrendScannerAgent initialized with %d relevant topics", 
                    len(self.relevant_topics))
 
-    def scan_all_platforms(self) -> Dict[str, Any]:
+    def scan_all_platforms(self, include_articles: bool = False) -> Dict[str, Any]:
         """
         Scan all social media platforms for trends.
         
+        Args:
+            include_articles: Whether to search for articles about AI solving real-world problems
+            
         Returns:
             Dict containing trend data for each platform
         """
@@ -76,8 +87,43 @@ class TrendScannerAgent:
             "timestamp": datetime.now(),
             "twitter": self._scan_twitter(),
             "instagram": self._scan_instagram(),
-            "linkedin": self._scan_linkedin()
+            "linkedin": self._scan_linkedin(),
+            "facebook": {}  # Facebook trends (can be populated if Facebook API is available)
         }
+        
+        # Identify highest trending topic across all platforms for Facebook priority
+        all_trends = []
+        for platform in ["twitter", "instagram", "linkedin"]:
+            platform_data = trends_data.get(platform, {})
+            if "error" not in platform_data:
+                hashtags = platform_data.get("trending_hashtags", [])
+                topics = platform_data.get("topics", [])
+                trending_topics = platform_data.get("trending_topics", [])
+                all_trends.extend(hashtags)
+                all_trends.extend(topics)
+                all_trends.extend(trending_topics)
+        
+        # Find highest trending topic (by volume or relevance score)
+        if all_trends:
+            highest_trend = max(
+                all_trends,
+                key=lambda x: (
+                    x.get('tweet_volume', 0) or x.get('volume', 0) or x.get('engagement', 0),
+                    x.get('relevance_score', 0)
+                )
+            )
+            trends_data["highest_trending_topic"] = highest_trend
+            trends_data["facebook_priority_topic"] = highest_trend  # For Facebook posting
+            logger.info("Identified highest trending topic for Facebook: %s (Volume: %s)",
+                       highest_trend.get('name', 'N/A'),
+                       highest_trend.get('tweet_volume') or highest_trend.get('volume', 0))
+        
+        # Search for articles if requested
+        if include_articles:
+            logger.info("Searching for articles about AI solving real-world problems")
+            articles = self.article_searcher.find_articles(count=2)
+            trends_data["articles"] = articles
+            logger.info("Found %d articles", len(articles))
         
         # Cache the results
         self.cache_manager.cache_trends(trends_data)
@@ -222,8 +268,24 @@ class TrendScannerAgent:
         
         report.append(linkedin_line)
         
+        # Add Facebook highest trending topic identification
+        highest_topic = trends.get("facebook_priority_topic") or trends.get("highest_trending_topic")
+        if highest_topic:
+            volume = highest_topic.get('tweet_volume') or highest_topic.get('volume', 0)
+            if volume > 1000:
+                volume_str = f"{volume/1000:.0f}k+ engagements"
+            else:
+                volume_str = f"{volume} engagements"
+            
+            report.append(f"\n**Facebook:** **Highest trending topic:** {highest_topic.get('name', 'N/A')} "
+                         f"({volume_str}). This will be the primary focus for Facebook content.")
+        else:
+            report.append("\n**Facebook:** No highest trending topic identified at this time.")
+        
         # Add a note about data sources and relevance
-        report.append("\nThis report focuses on trends relevant to astronomy, physics, education, and space technology. Filtered for SFW content only.")
+        report.append("\nThis report focuses on trends relevant to AI solving real-world problems, "
+                     "artificial intelligence applications, and machine learning innovations. "
+                     "Filtered for SFW content only.")
         
         return "\n".join(report)
 

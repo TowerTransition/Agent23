@@ -226,6 +226,14 @@ def schedule_posts(content_files: Dict[str, str], time_zone: str, dry_run: bool 
                         scheduled_time=optimal_time,
                         post_id=f"{platform}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
                     )
+                
+                elif platform.lower() == "facebook":
+                    scheduler.schedule_post(
+                        platform="facebook",
+                        content=content,
+                        scheduled_time=optimal_time,
+                        post_id=f"{platform}_{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}"
+                    )
             
             except Exception as e:
                 logger.error(f"Error scheduling post for {platform}: {e}")
@@ -318,8 +326,8 @@ def parse_args():
     parser.add_argument('--keywords', '-k', type=str, nargs='+', default=['astronomy', 'physics', 'space'],
                         help='Keywords to search for trends')
     
-    parser.add_argument('--platforms', '-p', type=str, nargs='+', default=['twitter', 'instagram', 'linkedin'],
-                        choices=['twitter', 'instagram', 'linkedin'],
+    parser.add_argument('--platforms', '-p', type=str, nargs='+', default=['twitter', 'instagram', 'linkedin', 'facebook'],
+                        choices=['twitter', 'instagram', 'linkedin', 'facebook'],
                         help='Platforms to create content for')
     
     parser.add_argument('--brand-file', '-b', type=str, 

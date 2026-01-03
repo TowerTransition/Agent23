@@ -18,6 +18,7 @@ import queue
 from .platform_posters.twitter_poster import TwitterPoster
 from .platform_posters.instagram_poster import InstagramPoster
 from .platform_posters.linkedin_poster import LinkedInPoster
+from .platform_posters.facebook_poster import FacebookPoster
 from .post_scheduler import PostScheduler
 
 class SchedulerAgent:
@@ -92,6 +93,10 @@ class SchedulerAgent:
                 cache_dir=self.cache_dir,
                 dry_run=self.dry_run
             )
+            self.facebook_poster = FacebookPoster(
+                cache_dir=self.cache_dir,
+                dry_run=self.dry_run
+            )
             self.logger.info("Platform posters initialized successfully")
         except Exception as e:
             self.logger.error("Error initializing platform posters: %s", str(e))
@@ -117,7 +122,7 @@ class SchedulerAgent:
             Dictionary with scheduling details
         """
         # Validate platform
-        if platform.lower() not in ["twitter", "instagram", "linkedin"]:
+        if platform.lower() not in ["twitter", "instagram", "linkedin", "facebook"]:
             self.logger.error("Unsupported platform: %s", platform)
             return {"error": f"Unsupported platform: {platform}"}
         
@@ -394,6 +399,8 @@ class SchedulerAgent:
                 return self.instagram_poster.post(content, post_id)
             elif platform == "linkedin":
                 return self.linkedin_poster.post(content, post_id)
+            elif platform == "facebook":
+                return self.facebook_poster.post(content, post_id)
             else:
                 return {"success": False, "error": f"Unsupported platform: {platform}"}
         except Exception as e:

@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% load dashboard_filters %}
+
+{% block title %}Trend Dashboard - AI Agents{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-container {
+        position: relative;
+        height: 300px;
+        margin-bottom: 2rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-graph-up"></i> Trend Dashboard</h1>
+</div>
+
+<!-- Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form method="GET" class="row g-3">
+            <div class="col-md-4">
+                <label class="form-label">Platform</label>
+                <select name="platform" class="form-select">
+                    <option value="">All Platforms</option>
+                    {% for code, name in platforms %}
+                        <option value="{{ code }}" {% if platform_filter == code %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">Date</label>
+                <input type="date" name="date" class="form-control" value="{{ date_filter }}">
+            </div>
+            <div class="col-md-4 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">Filter</button>
+                <a href="{% url 'trend_dashboard' %}" class="btn btn-outline-secondary">Clear</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="row mb-4">
+    {% for platform_code, platform_name in platforms %}
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{{ platform_name }} Trends (Last 7 Days)</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="chart{{ platform_code }}"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Top Trends by Platform -->
+<div class="row">
+    {% for platform_code, platform_name in platforms %}
+    <div class="col-md-6 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Top {{ platform_name }} Trends</h5>
+            </div>
+            <div class="card-body">
+                {% if top_trends_by_platform|get_item:platform_code %}
+                    <div class="list-group list-group-flush">
+                        {% for trend in top_trends_by_platform|get_item:platform_code %}
+                            <div class="list-group-item">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>{{ trend.trend_name }}</strong>
+                                        <span class="badge bg-secondary ms-2">{{ trend.trend_type }}</span>
+                                    </div>
+                                    <div class="text-end">
+                                        <div class="fw-bold">{{ trend.volume }}</div>
+                                        <small class="text-muted">Score: {{ trend.relevance_score|floatformat:2 }}</small>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="text-muted text-center py-3">No trends found for {{ platform_name }}</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Initialize charts
+    {% for platform_code, platform_name in platforms %}
+    const ctx{{ platform_code }} = document.getElementById('chart{{ platform_code }}');
+    {% if chart_data|get_item:platform_code %}
+    const chartData{{ platform_code }} = {{ chart_data|get_item:platform_code|json_dumps|safe }};
+    if (ctx{{ platform_code }} && chartData{{ platform_code }} && chartData{{ platform_code }}.dates && chartData{{ platform_code }}.dates.length > 0) {
+        new Chart(ctx{{ platform_code }}, {
+            type: 'line',
+            data: {
+                labels: chartData{{ platform_code }}.dates,
+                datasets: [{
+                    label: 'Trend Volume',
+                    data: chartData{{ platform_code }}.volumes,
+                    borderColor: 'rgb(75, 192, 192)',
+                    backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+    {% endif %}
+    {% endfor %}
+</script>
+{% endblock %}
+

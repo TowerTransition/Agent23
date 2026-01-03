@@ -1,51 +1,108 @@
 {
-    "brand_name": "AstroCalc Pro",
-    "voice": "Educational, enthusiastic, and authoritative but accessible. Use friendly language that makes complex topics approachable. Be conversational but accurate. Balance technical precision with engaging explanations.",
-    "content_requirements": "Always include the product name 'AstroCalc Pro' when relevant. Focus on educational value. Use metric units for measurements. Ensure all scientific claims are accurate. When possible, relate content to real-world applications or current events.",
-    "prohibited": "Avoid political statements. No religious references. Don't criticize other brands or products. No exaggerated or unsubstantiated claims. Avoid overly technical jargon without explanation.",
-    "visual_style": "Clean, modern aesthetic with deep space blues and cosmic purples. Prefer scientific illustrations over abstract art. Educational diagrams should be clear and labeled.",
-    "product_mentions": "Refer to our product as 'AstroCalc Pro' on first mention, then 'AstroCalc' or 'the app' in subsequent mentions. Highlight one feature per post. Phrase as a benefit, not just a feature.",
+    "brand_name": "Elevare by Amaziah",
+    "attribution": {
+        "enabled": true,
+        "style": "subtle",
+        "default_line": "- Elevare by Amaziah",
+        "long_form": "Insights from Elevare by Amaziah, building real-world systems with AI."
+    },
+    "voice": {
+        "description": "Educational, enthusiastic, and authoritative but accessible. Focus on real-world impact and practical applications.",
+        "traits": [
+            "Friendly language that makes AI concepts approachable",
+            "Conversational but accurate about AI capabilities",
+            "Balances technical precision with engaging explanations",
+            "Passionate about AI solving real-world problems",
+            "Emphasizes practical benefits and tangible outcomes",
+            "Inspiring and forward-thinking tone"
+        ]
+    },
+    "content_requirements": [
+        "Focus on AI solving real-world problems and practical applications",
+        "Emphasize tangible benefits and outcomes, not just technology",
+        "Use clear, accessible language that explains AI concepts",
+        "Ensure all AI claims are accurate and substantiated",
+        "Relate content to current trends and real-world use cases",
+        "Include examples of AI applications in healthcare, education, business, environment, etc.",
+        "Highlight success stories and case studies when relevant"
+    ],
+    "prohibited_content": [
+        "Political statements",
+        "Religious references",
+        "Criticism of other brands or products",
+        "Exaggerated or unsubstantiated AI claims",
+        "Overly technical jargon without explanation",
+        "Fear-mongering about AI",
+        "Speculative or unproven AI capabilities"
+    ],
+    "visual_style": {
+        "description": "Clean, modern aesthetic with tech-forward theme",
+        "colors": ["#0066FF", "#00D4FF", "#FFFFFF", "#1A1A1A", "#00FF88"],
+        "preferred_imagery": "Modern tech illustrations, real-world application visuals, data visualizations",
+        "diagrams": "Clear infographics showing AI impact and use cases"
+    },
+    "product_mentions": {
+        "first_mention": "AI solutions",
+        "subsequent_mentions": ["AI", "artificial intelligence", "machine learning"],
+        "emphasis": "Focus on outcomes and benefits, not just technology features"
+    },
     "platforms": {
         "twitter": {
-            "tone": "More casual, brief but impactful",
-            "hashtags": ["#AstroCalcPro", "#Astronomy", "#SpaceScience"],
-            "cta": "Encourage clicks to profile link"
+            "tone": "Casual, brief but impactful, trend-aware",
+            "hashtags": ["#AI", "#MachineLearning", "#AISolves", "#TechForGood", "#AIApplications", "#RealWorldAI"],
+            "cta": "Encourage engagement and discussion about AI solutions"
         },
         "instagram": {
-            "tone": "Visual first, focus on awe and wonder",
-            "hashtags": ["#AstroCalcPro", "#Astronomy", "#SpaceLovers", "#AstronomyFacts"],
-            "cta": "Encourage profile visits and app downloads"
+            "tone": "Visual first, focus on impact and transformation",
+            "hashtags": ["#AI", "#MachineLearning", "#AISolves", "#TechForGood", "#AIforGood", "#AIApplications", "#RealWorldAI", "#Innovation"],
+            "cta": "Encourage profile visits and sharing of AI success stories"
         },
         "linkedin": {
             "tone": "Professional, educational focus, industry insights",
-            "hashtags": ["#SpaceTech", "#STEM", "#ScienceEducation"],
-            "cta": "Position as thought leaders, encourage professional discussion"
+            "hashtags": ["#AI", "#MachineLearning", "#ArtificialIntelligence", "#TechInnovation", "#DigitalTransformation", "#AIinBusiness"],
+            "cta": "Position as thought leaders, encourage professional discussion about AI applications"
+        },
+        "facebook": {
+            "tone": "Engaging, community-focused, accessible",
+            "hashtags": ["#AI", "#MachineLearning", "#AISolves", "#TechForGood", "#AIApplications", "#Innovation"],
+            "cta": "Encourage community engagement and sharing of AI impact stories",
+            "focus": "Use the highest trending topic related to AI solving real-world problems"
         }
     },
     "product_features": [
         {
-            "name": "Stellar Simulator",
-            "description": "Accurately simulate and visualize star patterns from any location on Earth",
-            "benefit": "Explore the night sky from anywhere, even before you travel there"
+            "name": "AI in Healthcare",
+            "description": "AI applications improving medical diagnosis, treatment, and patient care",
+            "benefit": "Better health outcomes and more accessible healthcare"
         },
         {
-            "name": "Eclipse Tracker",
-            "description": "Predict and visualize solar and lunar eclipses with precision timing",
-            "benefit": "Never miss another celestial event with personalized notifications"
+            "name": "AI in Education",
+            "description": "Personalized learning, intelligent tutoring systems, and educational tools",
+            "benefit": "Enhanced learning experiences and improved educational outcomes"
         },
         {
-            "name": "Planet Viewer",
-            "description": "Interactive 3D models of all planets and major moons in our solar system",
-            "benefit": "Discover the wonders of our solar system in stunning detail"
+            "name": "AI in Business",
+            "description": "Automation, predictive analytics, and intelligent decision-making systems",
+            "benefit": "Increased efficiency, cost savings, and better business decisions"
         },
         {
-            "name": "Astronomy Calculator",
-            "description": "Advanced calculations for orbital mechanics, gravitational forces, and more",
-            "benefit": "Solve complex astronomy problems with just a few taps"
+            "name": "AI for Environment",
+            "description": "Climate modeling, resource optimization, and environmental monitoring",
+            "benefit": "Sustainable solutions and environmental protection"
         }
     ],
     "target_audience": {
-        "primary": "Amateur astronomers, educators, STEM enthusiasts",
-        "secondary": "Students, casual stargazers, science communicators"
+        "primary": [
+            "Tech enthusiasts interested in AI applications",
+            "Business professionals exploring AI solutions",
+            "Educators and students learning about AI",
+            "Healthcare professionals interested in AI tools"
+        ],
+        "secondary": [
+            "General public curious about AI impact",
+            "Developers and engineers",
+            "Policy makers and thought leaders",
+            "Investors in AI technology"
+        ]
     }
-} 
+}

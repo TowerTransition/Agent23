@@ -44,21 +44,29 @@ def load_product_info(product_info_path: str = None):
         except Exception as e:
             logger.error("Error loading product info: %s", str(e))
     
-    # Default product info
+    # Default product info - AI-focused
     return {
-        "name": "AstroCalc Pro",
-        "description": "An advanced calculator app for astronomy and physics calculations",
+        "name": "Elevare by Amaziah",
+        "description": "Building real-world systems with AI to solve practical problems",
         "features": [
             {
-                "name": "Stellar Simulator",
-                "description": "Accurately simulate star patterns from any location"
+                "name": "AI in Healthcare",
+                "description": "AI applications improving medical diagnosis and patient care"
             },
             {
-                "name": "Eclipse Tracker",
-                "description": "Predict and visualize eclipses with precision timing"
+                "name": "AI in Business",
+                "description": "Automation and intelligent decision-making systems for enterprises"
+            },
+            {
+                "name": "AI in Education",
+                "description": "Personalized learning and intelligent tutoring systems"
+            },
+            {
+                "name": "AI for Environment",
+                "description": "Climate modeling and environmental monitoring solutions"
             }
         ],
-        "website": "https://example.com/astrocalc"
+        "website": "https://example.com/elevare"
     }
 
 def convert_trend_report_to_data(trend_report: str) -> dict:
@@ -103,18 +111,28 @@ def convert_trend_report_to_data(trend_report: str) -> dict:
                 hashtags.append(tag.strip('`#'))
     
     # Process the main title/trend
-    title = "Astronomy and Space Science"  # Default
+    title = "AI Solving Real-World Problems"  # Default
     if twitter_section:
         # Try to extract a trending topic from the Twitter section
         if "`#" in twitter_section:
             title_match = twitter_section.split("`#")[1].split("`")[0]
             if title_match:
                 title = title_match
+        # Also check for AI-related keywords in the section
+        if any(keyword in twitter_section.lower() for keyword in ["ai", "artificial intelligence", "machine learning", "ml"]):
+            # Extract AI-related topic
+            words = twitter_section.split()
+            for i, word in enumerate(words):
+                if any(keyword in word.lower() for keyword in ["ai", "ml", "intelligence"]):
+                    # Try to get context around this word
+                    if i < len(words) - 1:
+                        title = f"{word} {words[i+1]}" if i+1 < len(words) else word
+                    break
     
     # Create structured trend data
     trend_data = {
         "title": title,
-        "description": "This is a trending topic in astronomy and space science.",
+        "description": "This is a trending topic about AI solving real-world problems and practical applications.",
         "hashtags": list(set(hashtags)),  # Remove duplicates
         "source": "TrendScannerAgent",
         "timestamp": datetime.now().isoformat()
@@ -173,6 +191,8 @@ def save_content(content: dict, output_dir: str = "generated_content"):
                 f.write(f"Caption: {platform_content.get('caption', '')}\n\n")
             elif platform == "linkedin":
                 f.write(f"Post: {platform_content.get('text', '')}\n\n")
+            elif platform == "facebook":
+                f.write(f"Post: {platform_content.get('text', '')}\n\n")
             
             if "hashtags" in platform_content:
                 f.write(f"Hashtags: {', '.join(['#' + tag for tag in platform_content['hashtags']])}\n\n")
@@ -191,7 +211,7 @@ def main():
     parser.add_argument(
         "--platforms", 
         nargs="+", 
-        default=["twitter", "instagram", "linkedin"],
+        default=["twitter", "instagram", "linkedin", "facebook"],
         help="Platforms to generate content for"
     )
     parser.add_argument(
@@ -224,8 +244,11 @@ def main():
     load_dotenv()
     
     # Check for required API keys
-    if not os.environ.get("OPENAI_API_KEY"):
-        logger.warning("OPENAI_API_KEY not found in environment. Text generation will fail.")
+    if not os.environ.get("LOCAL_LLM_ENDPOINT"):
+        logger.warning("LOCAL_LLM_ENDPOINT not found in environment. Text generation will fail.")
+        logger.info("Set LOCAL_LLM_ENDPOINT to your local LLM endpoint URL (e.g., http://your-llm-endpoint/v1/chat/completions)")
+    else:
+        logger.info("Using local LLM endpoint: %s", os.environ.get("LOCAL_LLM_ENDPOINT"))
     
     if not os.environ.get("STABILITY_API_KEY") and not args.disable_image_generation:
         logger.warning("STABILITY_API_KEY not found in environment. Image generation will fail.")
@@ -284,6 +307,8 @@ def main():
                     print(f"Instagram: Generated {len(platform_content.get('caption', ''))} character caption")
                 elif platform == "linkedin":
                     print(f"LinkedIn: Generated {len(platform_content.get('text', ''))} character post")
+                elif platform == "facebook":
+                    print(f"Facebook: Generated {len(platform_content.get('text', ''))} character post")
                 
                 if "image" in platform_content:
                     print(f"  - Image: {platform_content['image'].get('filename', 'Generated')}")

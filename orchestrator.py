@@ -15,6 +15,7 @@ import argparse
 import time
 import threading
 import schedule
+import pytz
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
@@ -55,7 +56,7 @@ class Orchestrator:
         content_dir: str = "content",
         logs_dir: str = "logs",
         brand_file: str = "agents/content_creator/example_brand_guidelines.json",
-        platforms: List[str] = ["twitter", "instagram", "linkedin"],
+        platforms: List[str] = ["twitter", "instagram", "linkedin", "facebook"],
         keywords: List[str] = ["astronomy", "physics", "space"],
         time_zone: str = "America/New_York",
         dry_run: bool = False,
@@ -102,7 +103,8 @@ class Orchestrator:
             self.max_posts_per_day = {
                 "twitter": 5,
                 "instagram": 2,
-                "linkedin": 1
+                "linkedin": 1,
+                "facebook": 3
             }
         else:
             self.max_posts_per_day = max_posts_per_day
@@ -206,22 +208,42 @@ class Orchestrator:
         except Exception as e:
             self.logger.error(f"Error saving content pool: {e}")
     
-    def scan_trends(self) -> bool:
+    def scan_trends(self, include_articles: bool = False) -> bool:
         """
         Run the TrendScannerAgent to scan for trends.
         
+        Args:
+            include_articles: Whether to search for articles about AI solving real-world problems
+            
         Returns:
             True if successful, False otherwise
         """
         try:
             self.logger.info(f"Starting trend scanning with keywords: {self.keywords}")
+            if include_articles:
+                self.logger.info("Including article search for AI solving real-world problems")
             
-            # Scan for trends
-            trends = self.trend_scanner.scan_trends(self.keywords)
+            # Scan for trends (including articles if requested)
+            trends = self.trend_scanner.scan_all_platforms(include_articles=include_articles)
             
-            # Save trend report
+            # Generate trend report
+            trend_report = self.trend_scanner.generate_trend_report()
+            
+            # If articles were found, add them to the report
+            if include_articles and "articles" in trends:
+                articles = trends.get("articles", [])
+                if articles:
+                    article_report = self.trend_scanner.article_searcher.format_articles_for_trend_report(articles)
+                    trend_report += "\n\n" + article_report
+            
+            # Save trend report as JSON
             with open(self.trend_report_path, 'w') as f:
                 json.dump(trends, f, indent=2)
+            
+            # Also save as markdown for readability
+            report_path_md = self.trend_report_path.replace('.json', '.md')
+            with open(report_path_md, 'w') as f:
+                f.write(trend_report)
             
             self.last_trend_scan = datetime.now()
             self.logger.info(f"Trend report saved to {self.trend_report_path}")
@@ -383,6 +405,196 @@ class Orchestrator:
             self.logger.error(f"Error scheduling posts: {e}")
             return False
     
+    def schedule_posts_staggered(self) -> bool:
+        """
+        Schedule posts following the data.mdc timeline:
+        - Twitter: 10:00 AM
+        - Instagram: 10:30 AM
+        - LinkedIn: 12:00 PM
+        - Facebook: 11:00 AM (added for completeness)
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            self.logger.info("Scheduling posts with staggered times")
+            
+            # Define posting times for each platform (Eastern Time)
+            eastern = pytz.timezone('America/New_York')
+            now = datetime.now(eastern)
+            
+            # Set posting times
+            posting_times = {
+                "twitter": now.replace(hour=10, minute=0, second=0, microsecond=0),
+                "instagram": now.replace(hour=10, minute=30, second=0, microsecond=0),
+                "linkedin": now.replace(hour=12, minute=0, second=0, microsecond=0),
+                "facebook": now.replace(hour=11, minute=0, second=0, microsecond=0)
+            }
+            
+            # If times are in the past, schedule for tomorrow
+            for platform, post_time in posting_times.items():
+                if post_time < now:
+                    post_time += timedelta(days=1)
+                    posting_times[platform] = post_time
+            
+            # Load content pool
+            content_pool = self._load_content_pool()
+            
+            # Schedule posts for each platform
+            for platform in self.platforms:
+                if platform not in posting_times:
+                    self.logger.warning(f"No posting time defined for {platform}, skipping")
+                    continue
+                
+                # Get unused content for this platform
+                unused_content = [c for c in content_pool[platform] if not c.get('used', False)]
+                
+                if not unused_content:
+                    self.logger.warning(f"No unused content available for {platform}, creating new content")
+                    # Create content for this platform
+                    if not os.path.exists(self.trend_report_path):
+                        if not self.scan_trends(include_articles=True):
+                            continue
+                    
+                    with open(self.trend_report_path, 'r') as f:
+                        trend_data = json.load(f)
+                    
+                    # Generate content for this platform
+                    content = self.content_creator.generate_for_platform(
+                        platform=platform,
+                        trend_data=trend_data
+                    )
+                    
+                    if not content:
+                        self.logger.error(f"Failed to generate content for {platform}")
+                        continue
+                    
+                    content['created_at'] = datetime.now().isoformat()
+                    content['id'] = f"{platform}_{int(time.time())}_{os.urandom(4).hex()}"
+                    unused_content = [content]
+                    content_pool[platform].append(content)
+                
+                # Use the first unused content item
+                content_item = unused_content[0]
+                post_time = posting_times[platform]
+                
+                # Request human review if enabled
+                if self.human_review:
+                    approved = self._request_human_approval(platform, content_item, post_time)
+                    if not approved:
+                        self.logger.info(f"Content for {platform} was rejected by human review")
+                        continue
+                
+                # Schedule the post
+                self.logger.info(f"Scheduling {platform} post for {post_time.strftime('%I:%M %p')} Eastern")
+                result = self.scheduler.schedule_post(
+                    platform=platform,
+                    content=content_item,
+                    scheduled_time=post_time,
+                    post_id=content_item['id']
+                )
+                
+                if result.get('status') == 'scheduled':
+                    # Mark content as used
+                    content_item['used'] = True
+                    content_item['scheduled_time'] = post_time.isoformat()
+                    self.logger.info(f"Successfully scheduled {platform} post for {post_time.strftime('%I:%M %p')} Eastern")
+                else:
+                    self.logger.error(f"Failed to schedule {platform} post: {result.get('error', 'Unknown error')}")
+            
+            # Save updated content pool
+            self._save_content_pool(content_pool)
+            
+            self.logger.info("Staggered post scheduling completed")
+            return True
+        
+        except Exception as e:
+            self.logger.error(f"Error scheduling staggered posts: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return False
+    
+    def schedule_and_post_all_platforms(self) -> bool:
+        """
+        Schedule and immediately post content to all platforms.
+        Used for the daily 8 AM automation cycle.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            self.logger.info("Posting to all platforms: %s", ", ".join(self.platforms))
+            
+            # Load content pool
+            content_pool = self._load_content_pool()
+            
+            # Post to each platform immediately
+            for platform in self.platforms:
+                # Get unused content for this platform
+                unused_content = [c for c in content_pool[platform] if not c.get('used', False)]
+                
+                if not unused_content:
+                    self.logger.warning(f"No unused content available for {platform}, creating new content")
+                    # Create content for this platform
+                    if not os.path.exists(self.trend_report_path):
+                        if not self.scan_trends(include_articles=True):
+                            continue
+                    
+                    with open(self.trend_report_path, 'r') as f:
+                        trend_data = json.load(f)
+                    
+                    # Generate content for this platform
+                    content = self.content_creator.generate_for_platform(
+                        platform=platform,
+                        trend_data=trend_data
+                    )
+                    
+                    if not content:
+                        self.logger.error(f"Failed to generate content for {platform}")
+                        continue
+                    
+                    content['created_at'] = datetime.now().isoformat()
+                    content['id'] = f"{platform}_{int(time.time())}_{os.urandom(4).hex()}"
+                    unused_content = [content]
+                
+                # Use the first unused content item
+                content_item = unused_content[0]
+                
+                # Request human review if enabled
+                if self.human_review:
+                    approved = self._request_human_approval(platform, content_item, datetime.now())
+                    if not approved:
+                        self.logger.info(f"Content for {platform} was rejected by human review")
+                        continue
+                
+                # Post immediately
+                self.logger.info(f"Posting to {platform} immediately")
+                result = self.scheduler.post_now(
+                    platform=platform,
+                    content=content_item,
+                    post_id=content_item['id']
+                )
+                
+                if result.get('success'):
+                    # Mark content as used
+                    content_item['used'] = True
+                    content_item['posted_at'] = datetime.now().isoformat()
+                    self.logger.info(f"Successfully posted to {platform}")
+                else:
+                    self.logger.error(f"Failed to post to {platform}: {result.get('error', 'Unknown error')}")
+            
+            # Save updated content pool
+            self._save_content_pool(content_pool)
+            
+            self.logger.info("Posting to all platforms completed")
+            return True
+        
+        except Exception as e:
+            self.logger.error(f"Error posting to platforms: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return False
+    
     def _request_human_approval(self, platform: str, content: Dict[str, Any], posting_time: datetime) -> bool:
         """
         Request human approval for content.
@@ -406,6 +618,10 @@ class Orchestrator:
                 print(f"CAPTION: {content.get('caption', '')}")
             elif platform == "linkedin":
                 print(f"TEXT: {content.get('text', '')}")
+            elif platform == "facebook":
+                print(f"TEXT: {content.get('text', '')}")
+                if 'link' in content:
+                    print(f"LINK: {content.get('link', '')}")
             
             if 'image' in content:
                 print("IMAGE: [Image data available]")
@@ -419,41 +635,76 @@ class Orchestrator:
             self.logger.error(f"Error during human approval: {e}")
             return False
     
-    def run_daily_cycle(self):
-        """Run a complete daily cycle of trend scanning, content creation, and scheduling."""
+    def run_daily_cycle(self, timeout_minutes: int = 15):
+        """
+        Run a complete daily cycle following the schedule from data.mdc:
+        All tasks must be completed between 8:00 AM and 8:15 AM Eastern.
+        - 08:00 AM: Fetch latest trends (hashtags, articles)
+        - 08:05 AM: Generate draft posts for all platforms
+        - 08:06 AM: Generate images (handled during content creation)
+        - 08:10 AM: Review content (optional human step)
+        - 08:15 AM: Post to all platforms immediately
+        
+        Args:
+            timeout_minutes: Maximum time to run the cycle in minutes (default: 15)
+        """
+        start_time = datetime.now()
+        timeout_seconds = timeout_minutes * 60
+        
         try:
-            self.logger.info("Starting daily cycle")
+            self.logger.info("Starting daily cycle - all tasks must complete by 8:15 AM Eastern (timeout: %d minutes)", timeout_minutes)
             
-            # Step 1: Scan for trends
-            if (self.last_trend_scan is None or 
-                (datetime.now() - self.last_trend_scan).total_seconds() > self.trend_scan_interval * 3600):
-                if not self.scan_trends():
-                    self.logger.error("Trend scanning failed, aborting cycle")
-                    return
-            else:
-                self.logger.info("Using recent trend data, skipping scan")
+            # Check timeout before each step
+            def check_timeout():
+                elapsed = (datetime.now() - start_time).total_seconds()
+                if elapsed > timeout_seconds:
+                    self.logger.warning("Daily cycle timeout reached (%d minutes), stopping", timeout_minutes)
+                    return True
+                return False
             
-            # Step 2: Create content if needed
-            if (self.last_content_creation is None or 
-                (datetime.now() - self.last_content_creation).total_seconds() > self.content_creation_interval * 3600):
-                if not self.create_content():
-                    self.logger.error("Content creation failed, aborting cycle")
-                    return
-            else:
-                self.logger.info("Using recent content creation, skipping generation")
-            
-            # Step 3: Schedule posts
-            if not self.schedule_posts():
-                self.logger.error("Post scheduling failed")
+            # 08:00 AM: Step 1 - Fetch latest trends (hashtags, articles)
+            if check_timeout():
                 return
             
-            self.logger.info("Daily cycle completed successfully")
+            self.logger.info("[08:00 AM] Fetching latest trends and articles about AI solving real-world problems")
+            if not self.scan_trends(include_articles=True):
+                self.logger.error("Trend scanning failed, aborting cycle")
+                return
+            
+            # 08:05 AM: Step 2 - Generate draft posts for all platforms
+            if check_timeout():
+                return
+            
+            self.logger.info("[08:05 AM] Generating draft posts for all platforms: %s", ", ".join(self.platforms))
+            if not self.create_content():
+                self.logger.error("Content creation failed, aborting cycle")
+                return
+            
+            # 08:06 AM: Step 3 - Generate images (handled automatically during content creation)
+            self.logger.info("[08:06 AM] Images generated during content creation")
+            
+            # 08:10 AM: Step 4 - Review content (optional human step - handled in posting)
+            self.logger.info("[08:10 AM] Content ready for review (human review: %s)", self.human_review)
+            
+            # 08:15 AM: Step 5 - Post to all platforms immediately
+            if check_timeout():
+                return
+            
+            self.logger.info("[08:15 AM] Posting to all platforms immediately")
+            if not self.schedule_and_post_all_platforms():
+                self.logger.error("Posting to platforms failed")
+                return
+            
+            elapsed = (datetime.now() - start_time).total_seconds()
+            self.logger.info("Daily cycle completed successfully in %.1f seconds (all tasks completed by 8:15 AM)", elapsed)
             
         except Exception as e:
             self.logger.error(f"Error in daily cycle: {e}")
+            import traceback
+            self.logger.error(traceback.format_exc())
     
     def start(self):
-        """Start the orchestrator with scheduled tasks."""
+        """Start the orchestrator with scheduled tasks running at 8:00 AM Eastern daily."""
         if self.running:
             self.logger.warning("Orchestrator already running")
             return
@@ -461,17 +712,37 @@ class Orchestrator:
         try:
             self.running = True
             
-            # Set up scheduled tasks
+            # Set up timezone for Eastern Time
+            eastern = pytz.timezone('America/New_York')
             
-            # Run daily cycle at 8 AM
-            schedule.every().day.at("08:00").do(self.run_daily_cycle)
+            # Set up scheduled tasks - Run daily cycle at 8:00 AM Eastern
+            def run_daily_at_8am():
+                """Wrapper to run daily cycle at 8 AM Eastern - all tasks complete by 8:15 AM."""
+                # Convert to Eastern time for logging
+                now_eastern = datetime.now(eastern)
+                self.logger.info("="*60)
+                self.logger.info("Running scheduled daily cycle at 8:00 AM Eastern (%s)", 
+                               now_eastern.strftime("%Y-%m-%d %H:%M:%S %Z"))
+                self.logger.info("All tasks must complete by 8:15 AM Eastern:")
+                self.logger.info("  08:00 AM - Fetch trends and articles")
+                self.logger.info("  08:05 AM - Generate content")
+                self.logger.info("  08:06 AM - Generate images")
+                self.logger.info("  08:10 AM - Review content (optional)")
+                self.logger.info("  08:15 AM - Post to all platforms immediately")
+                self.logger.info("="*60)
+                self.run_daily_cycle(timeout_minutes=15)
             
-            # Run trend scanning every few hours
-            for hour in range(8, 20, self.trend_scan_interval):
-                schedule.every().day.at(f"{hour:02d}:00").do(self.scan_trends)
+            # Schedule for 8:00 AM Eastern every day
+            schedule.every().day.at("08:00").do(run_daily_at_8am)
             
-            # Run initial cycle immediately
-            self.run_daily_cycle()
+            # Calculate next run time in Eastern
+            now_eastern = datetime.now(eastern)
+            next_run = now_eastern.replace(hour=8, minute=0, second=0, microsecond=0)
+            if now_eastern.hour >= 8:
+                next_run += timedelta(days=1)
+            
+            self.logger.info("Orchestrator scheduled to run daily at 8:00 AM Eastern")
+            self.logger.info("Next run: %s Eastern", next_run.strftime("%Y-%m-%d %H:%M:%S %Z"))
             
             # Start scheduler thread
             self.scheduler_thread = threading.Thread(
@@ -480,7 +751,7 @@ class Orchestrator:
             )
             self.scheduler_thread.start()
             
-            self.logger.info("Orchestrator started")
+            self.logger.info("Orchestrator started - waiting for scheduled time")
             
         except Exception as e:
             self.logger.error(f"Error starting orchestrator: {e}")
@@ -528,8 +799,8 @@ def parse_args():
                         help='Keywords to search for trends')
     
     parser.add_argument('--platforms', '-p', type=str, nargs='+', 
-                        default=['twitter', 'instagram', 'linkedin'],
-                        choices=['twitter', 'instagram', 'linkedin'],
+                        default=['twitter', 'instagram', 'linkedin', 'facebook'],
+                        choices=['twitter', 'instagram', 'linkedin', 'facebook'],
                         help='Platforms to create content for')
     
     parser.add_argument('--brand-file', '-b', type=str, 
@@ -563,6 +834,9 @@ def parse_args():
     parser.add_argument('--max-linkedin', type=int, default=1,
                         help='Maximum LinkedIn posts per day')
     
+    parser.add_argument('--max-facebook', type=int, default=3,
+                        help='Maximum Facebook posts per day')
+    
     return parser.parse_args()
 
 
@@ -581,7 +855,8 @@ if __name__ == "__main__":
     max_posts_per_day = {
         "twitter": args.max_twitter,
         "instagram": args.max_instagram,
-        "linkedin": args.max_linkedin
+        "linkedin": args.max_linkedin,
+        "facebook": args.max_facebook
     }
     
     # Initialize and start orchestrator

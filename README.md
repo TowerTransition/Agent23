@@ -11,7 +11,7 @@ A modular system for monitoring trending topics in astronomy, physics, and space
 - Modular design for easy extension and updates
 
 ### ContentCreatorAgent
-- Generates platform-specific content for Twitter, Instagram, and LinkedIn
+- Generates platform-specific content for Twitter, Instagram, LinkedIn, and Facebook
 - Integrates with OpenAI for text generation
 - Integrates with Stability AI for image generation
 - Ensures content follows brand guidelines
@@ -20,7 +20,7 @@ A modular system for monitoring trending topics in astronomy, physics, and space
 
 ### SchedulerAgent
 - Schedules social media posts at optimal times for maximum engagement
-- Platform-specific posting strategies (Twitter, Instagram, LinkedIn)
+- Platform-specific posting strategies (Twitter, Instagram, LinkedIn, Facebook)
 - Handles authentication and API interactions with social platforms
 - Supports dry-run mode for testing without actual posting
 - Robust error handling and retry mechanisms
@@ -61,9 +61,14 @@ python api_setup.py --save-report
 
 Alternatively, you can create the `.env` file manually using this template:
 ```
-# OpenAI API
+# OpenAI API (optional - use if not using local LLM)
 OPENAI_API_KEY=your_openai_api_key
 OPENAI_MODEL=gpt-4
+
+# Local LLM Configuration (for Google Cloud or self-hosted)
+# If LOCAL_LLM_ENDPOINT is set, it will be used instead of OpenAI API
+LOCAL_LLM_ENDPOINT=http://your-llm-endpoint:8000/v1/chat/completions
+LOCAL_LLM_API_KEY=optional_api_key_for_local_llm  # Optional, some endpoints don't require it
 
 # Stability AI API
 STABILITY_API_KEY=your_stability_api_key
@@ -80,7 +85,39 @@ INSTAGRAM_PASSWORD=your_instagram_password
 
 # LinkedIn API
 LINKEDIN_ACCESS_TOKEN=your_linkedin_access_token
+
+# Facebook/Meta Graph API
+FACEBOOK_APP_ID=your_facebook_app_id
+FACEBOOK_APP_SECRET=your_facebook_app_secret
+FACEBOOK_USER_ACCESS_TOKEN=your_facebook_user_access_token
+FACEBOOK_PAGE_ID=your_facebook_page_id  # Optional, will be auto-detected
+FACEBOOK_PAGE_ACCESS_TOKEN=your_facebook_page_access_token  # Optional, will be auto-retrieved
+
+# Local LLM Configuration (Optional - for Google Cloud or self-hosted)
+# If LOCAL_LLM_ENDPOINT is set, it will be used instead of OpenAI API
+# This avoids API costs by using your own LLM infrastructure
+LOCAL_LLM_ENDPOINT=http://your-llm-endpoint:8000/v1/chat/completions
+LOCAL_LLM_API_KEY=optional_api_key_for_local_llm  # Optional, some endpoints don't require it
 ```
+
+### Local LLM Setup (Google Cloud)
+
+To use your own LLM running in Google Cloud instead of OpenAI API:
+
+1. **Deploy your LLM** with an OpenAI-compatible API endpoint (e.g., using vLLM, TGI, or Ollama)
+2. **Set the endpoint** in your `.env` file:
+   ```
+   LOCAL_LLM_ENDPOINT=http://your-gcp-instance-ip:8000/v1/chat/completions
+   ```
+3. **Optional**: Set `LOCAL_LLM_API_KEY` if your endpoint requires authentication
+4. The system will automatically use your local LLM instead of OpenAI API
+5. **Note**: When using local LLM, OpenAI moderation is disabled and only custom content filtering is used
+
+**Supported LLM Frameworks:**
+- vLLM (recommended for production)
+- Text Generation Inference (TGI)
+- Ollama
+- Any OpenAI-compatible API endpoint
 
 5. Verify API connections:
 ```bash

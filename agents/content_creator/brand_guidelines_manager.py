@@ -34,9 +34,9 @@ class BrandGuidelinesManager:
         if guidelines_path:
             self.load_guidelines(guidelines_path)
         else:
-            # If no guidelines provided, use default science/education brand voice
+            # If no guidelines provided, use default AI-focused brand voice
             self.guidelines = self._get_default_guidelines()
-            self.logger.info("Using default brand guidelines")
+            self.logger.info("Using default brand guidelines for AI-focused content")
     
     def load_guidelines(self, guidelines_path: str) -> bool:
         """
@@ -132,7 +132,7 @@ class BrandGuidelinesManager:
         Get platform-specific guidelines.
         
         Args:
-            platform: Platform name (twitter, instagram, linkedin)
+            platform: Platform name (twitter, instagram, linkedin, facebook)
             
         Returns:
             Dictionary containing platform-specific guidelines
@@ -180,98 +180,130 @@ class BrandGuidelinesManager:
         
         return self.guidelines.get("product_features", [])
     
+    def get_attribution(self) -> Dict[str, Any]:
+        """
+        Get attribution configuration.
+        
+        Returns:
+            Dictionary containing attribution settings
+        """
+        if not self.guidelines:
+            return self._get_default_guidelines().get("attribution", {})
+        
+        return self.guidelines.get("attribution", {})
+    
     def _get_default_guidelines(self) -> Dict[str, Any]:
         """
-        Create default brand guidelines for a science/education brand.
+        Create default brand guidelines for AI-focused content about solving real-world problems.
         
         Returns:
             Dictionary containing default guidelines
         """
         return {
-            "brand_name": "AstroCalc Pro",
+            "brand_name": "Elevare by Amaziah",
+            "attribution": {
+                "enabled": True,
+                "style": "subtle",
+                "default_line": "- Elevare by Amaziah",
+                "long_form": "Insights from Elevare by Amaziah, building real-world systems with AI."
+            },
             "voice": {
-                "description": "Educational, enthusiastic, and authoritative but accessible.",
+                "description": "Educational, enthusiastic, and authoritative but accessible. Focus on real-world impact and practical applications.",
                 "traits": [
-                    "Friendly language that makes complex topics approachable",
-                    "Conversational but accurate",
+                    "Friendly language that makes AI concepts approachable",
+                    "Conversational but accurate about AI capabilities",
                     "Balances technical precision with engaging explanations",
-                    "Passionate about astronomy and space science"
+                    "Passionate about AI solving real-world problems",
+                    "Emphasizes practical benefits and tangible outcomes",
+                    "Inspiring and forward-thinking tone"
                 ]
             },
             "content_requirements": [
-                "Always include the product name 'AstroCalc Pro' when relevant",
-                "Focus on educational value",
-                "Use metric units for measurements",
-                "Ensure all scientific claims are accurate",
-                "When possible, relate content to real-world applications"
+                "Focus on AI solving real-world problems and practical applications",
+                "Emphasize tangible benefits and outcomes, not just technology",
+                "Use clear, accessible language that explains AI concepts",
+                "Ensure all AI claims are accurate and substantiated",
+                "Relate content to current trends and real-world use cases",
+                "Include examples of AI applications in healthcare, education, business, environment, etc.",
+                "Highlight success stories and case studies when relevant"
             ],
             "prohibited_content": [
                 "Political statements",
                 "Religious references",
                 "Criticism of other brands or products",
-                "Exaggerated or unsubstantiated claims",
-                "Overly technical jargon without explanation"
+                "Exaggerated or unsubstantiated AI claims",
+                "Overly technical jargon without explanation",
+                "Fear-mongering about AI",
+                "Speculative or unproven AI capabilities"
             ],
             "visual_style": {
-                "description": "Clean, modern aesthetic with deep space theme",
-                "colors": ["#1A2980", "#26D0CE", "#FFFFFF", "#121212"],
-                "preferred_imagery": "Scientific illustrations over abstract art",
-                "diagrams": "Clear and well-labeled educational diagrams"
+                "description": "Clean, modern aesthetic with tech-forward theme",
+                "colors": ["#0066FF", "#00D4FF", "#FFFFFF", "#1A1A1A", "#00FF88"],
+                "preferred_imagery": "Modern tech illustrations, real-world application visuals, data visualizations",
+                "diagrams": "Clear infographics showing AI impact and use cases"
             },
             "product_mentions": {
-                "first_mention": "AstroCalc Pro",
-                "subsequent_mentions": ["AstroCalc", "the app"],
-                "emphasis": "Highlight one feature per post, phrased as a benefit"
+                "first_mention": "AI solutions",
+                "subsequent_mentions": ["AI", "artificial intelligence", "machine learning"],
+                "emphasis": "Focus on outcomes and benefits, not just technology features"
             },
             "platforms": {
                 "twitter": {
-                    "tone": "More casual, brief but impactful",
-                    "hashtags": ["#AstroCalcPro", "#Astronomy", "#SpaceScience"],
-                    "cta": "Encourage clicks to profile link"
+                    "tone": "Casual, brief but impactful, trend-aware",
+                    "hashtags": ["#AI", "#MachineLearning", "#AISolves", "#TechForGood", "#AIApplications", "#RealWorldAI"],
+                    "cta": "Encourage engagement and discussion about AI solutions"
                 },
                 "instagram": {
-                    "tone": "Visual first, focus on awe and wonder",
-                    "hashtags": ["#AstroCalcPro", "#Astronomy", "#SpaceLovers", "#AstronomyFacts"],
-                    "cta": "Encourage profile visits and app downloads"
+                    "tone": "Visual first, focus on impact and transformation",
+                    "hashtags": ["#AI", "#MachineLearning", "#AISolves", "#TechForGood", "#AIforGood", "#AIApplications", "#RealWorldAI", "#Innovation"],
+                    "cta": "Encourage profile visits and sharing of AI success stories"
                 },
                 "linkedin": {
                     "tone": "Professional, educational focus, industry insights",
-                    "hashtags": ["#SpaceTech", "#STEM", "#ScienceEducation"],
-                    "cta": "Position as thought leaders, encourage professional discussion"
+                    "hashtags": ["#AI", "#MachineLearning", "#ArtificialIntelligence", "#TechInnovation", "#DigitalTransformation", "#AIinBusiness"],
+                    "cta": "Position as thought leaders, encourage professional discussion about AI applications"
+                },
+                "facebook": {
+                    "tone": "Engaging, community-focused, accessible",
+                    "hashtags": ["#AI", "#MachineLearning", "#AISolves", "#TechForGood", "#AIApplications", "#Innovation"],
+                    "cta": "Encourage community engagement and sharing of AI impact stories",
+                    "focus": "Use the highest trending topic related to AI solving real-world problems"
                 }
             },
             "product_features": [
                 {
-                    "name": "Stellar Simulator",
-                    "description": "Accurately simulate star patterns from any location on Earth",
-                    "benefit": "Never miss an astronomical event again"
+                    "name": "AI in Healthcare",
+                    "description": "AI applications improving medical diagnosis, treatment, and patient care",
+                    "benefit": "Better health outcomes and more accessible healthcare"
                 },
                 {
-                    "name": "Eclipse Tracker",
-                    "description": "Predict and visualize eclipses with precision timing",
-                    "benefit": "Plan your observation schedule months in advance"
+                    "name": "AI in Education",
+                    "description": "Personalized learning, intelligent tutoring systems, and educational tools",
+                    "benefit": "Enhanced learning experiences and improved educational outcomes"
                 },
                 {
-                    "name": "Planet Viewer",
-                    "description": "Interactive 3D model of planets and their orbits",
-                    "benefit": "Understand complex celestial mechanics visually"
+                    "name": "AI in Business",
+                    "description": "Automation, predictive analytics, and intelligent decision-making systems",
+                    "benefit": "Increased efficiency, cost savings, and better business decisions"
                 },
                 {
-                    "name": "Astronomy Calculator",
-                    "description": "Perform complex astronomical calculations instantly",
-                    "benefit": "Save hours on manual calculations for research or hobby"
+                    "name": "AI for Environment",
+                    "description": "Climate modeling, resource optimization, and environmental monitoring",
+                    "benefit": "Sustainable solutions and environmental protection"
                 }
             ],
             "target_audience": {
                 "primary": [
-                    "Amateur astronomers",
-                    "Astrophotographers",
-                    "STEM educators"
+                    "Tech enthusiasts interested in AI applications",
+                    "Business professionals exploring AI solutions",
+                    "Educators and students learning about AI",
+                    "Healthcare professionals interested in AI tools"
                 ],
                 "secondary": [
-                    "Science enthusiasts",
-                    "Students",
-                    "Professional astronomers"
+                    "General public curious about AI impact",
+                    "Developers and engineers",
+                    "Policy makers and thought leaders",
+                    "Investors in AI technology"
                 ]
             }
         } 

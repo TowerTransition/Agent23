@@ -1,15 +1,13 @@
 """
 Content Moderator - Module for checking content appropriateness before publishing.
 
-Uses OpenAI's Moderation API and custom filtering to ensure content
-meets platform guidelines and brand standards.
+Uses custom filtering rules to ensure content meets platform guidelines 
+and brand standards. Designed for use with local LLM endpoints.
 """
 
 import logging
 import re
-import os
-import openai
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Any, Optional
 
 # Configure logging
 logging.basicConfig(
@@ -21,7 +19,8 @@ logger = logging.getLogger("ContentModerator")
 class ContentModerator:
     """
     Checks content for appropriateness before publishing.
-    Uses OpenAI's Moderation API and custom filtering rules.
+    Uses custom filtering rules to ensure content meets platform guidelines
+    and brand standards. Designed for use with local LLM endpoints.
     """
     
     def __init__(self, custom_filter_words: Optional[List[str]] = None):
@@ -45,14 +44,10 @@ class ContentModerator:
             "wtf", "damn", "hell", "crap",
         ]
         
-        # Load OpenAI API key for moderation
-        openai.api_key = os.environ.get("OPENAI_API_KEY")
-        if not openai.api_key:
-            logger.warning("OpenAI API key not found. Using only basic content moderation.")
-        
-        logger.info("ContentModerator initialized with %d filter words", len(self.filter_words))
+        logger.info("ContentModerator initialized with %d filter words (using custom filters only)", 
+                   len(self.filter_words))
     
-    def check_content(self, content: str) -> bool:
+    def check_content(self, content: str) -> Dict[str, Any]:
         """
         Check if content is appropriate for publishing.
         
@@ -60,29 +55,28 @@ class ContentModerator:
             content: Text content to check
             
         Returns:
-            True if content is appropriate, False otherwise
+            Dictionary with keys:
+                - is_appropriate: bool indicating if content is appropriate
+                - reason: str explaining why content was rejected (if not appropriate)
+                - matched_terms: list of matched filter terms/patterns (if any)
         """
-        # First run custom filter check
+        # Run custom filter check
         custom_filter_result = self._custom_filter_check(content)
         if not custom_filter_result["appropriate"]:
-            logger.warning("Content failed custom filter check: %s", 
-                          ", ".join(custom_filter_result["matched_terms"]))
-            return False
+            matched_terms = custom_filter_result["matched_terms"]
+            reason = f"Content contains filtered terms/patterns: {', '.join(matched_terms)}"
+            logger.warning("Content failed custom filter check: %s", reason)
+            return {
+                "is_appropriate": False,
+                "reason": reason,
+                "matched_terms": matched_terms
+            }
         
-        # Then run OpenAI Moderation API check if key is available
-        if openai.api_key:
-            try:
-                moderation_result = self._openai_moderation_check(content)
-                if not moderation_result["appropriate"]:
-                    logger.warning("Content failed OpenAI moderation check: %s",
-                                  ", ".join(moderation_result["flagged_categories"]))
-                    return False
-            except Exception as e:
-                logger.error("Error in OpenAI moderation check: %s", str(e))
-                # If OpenAI check fails, rely only on custom filter
-                return custom_filter_result["appropriate"]
-        
-        return True
+        return {
+            "is_appropriate": True,
+            "reason": None,
+            "matched_terms": []
+        }
     
     def _custom_filter_check(self, content: str) -> Dict[str, Any]:
         """
@@ -119,38 +113,4 @@ class ContentModerator:
         return {
             "appropriate": len(matched_terms) == 0,
             "matched_terms": matched_terms
-        }
-    
-    def _openai_moderation_check(self, content: str) -> Dict[str, Any]:
-        """
-        Check content using OpenAI's Moderation API.
-        
-        Args:
-            content: Text content to check
-            
-        Returns:
-            Dictionary with check results
-        """
-        try:
-            response = openai.Moderation.create(input=content)
-            result = response.results[0]
-            
-            # Check if content is flagged
-            is_appropriate = not result.flagged
-            
-            # Extract flagged categories if any
-            flagged_categories = []
-            if result.flagged:
-                for category, flagged in result.categories.items():
-                    if flagged:
-                        flagged_categories.append(category)
-            
-            return {
-                "appropriate": is_appropriate,
-                "flagged_categories": flagged_categories,
-                "scores": result.category_scores
-            }
-            
-        except Exception as e:
-            logger.error("Error in OpenAI moderation API call: %s", str(e))
-            raise 
+        } 

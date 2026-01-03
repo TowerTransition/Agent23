@@ -237,18 +237,18 @@ class LinkedInScanner:
         # Create trending topics based on our relevant domains with fake engagement
         trending_topics = []
         
-        # Space/astronomy related topics that are often trending
+        # AI solving real-world problems topics that are often trending
         topics = [
-            {"name": "James Webb Space Telescope", "category": "Astronomy"},
-            {"name": "SpaceX Starship", "category": "Space Technology"},
-            {"name": "Black Hole Photography", "category": "Astrophysics"},
-            {"name": "Quantum Computing", "category": "Physics"},
-            {"name": "Mars Exploration", "category": "Space Exploration"},
-            {"name": "STEM Education", "category": "Education"},
-            {"name": "Astronomy Research", "category": "Science"},
-            {"name": "Space Industry Jobs", "category": "Career"},
-            {"name": "NASA Artemis Program", "category": "Space Exploration"},
-            {"name": "Dark Matter Research", "category": "Physics"}
+            {"name": "AI in Healthcare", "category": "Healthcare Technology"},
+            {"name": "Machine Learning in Business", "category": "Business Intelligence"},
+            {"name": "AI for Climate Solutions", "category": "Environmental Technology"},
+            {"name": "AI in Education", "category": "EdTech"},
+            {"name": "Enterprise AI Adoption", "category": "Enterprise Technology"},
+            {"name": "AI Ethics and Responsible AI", "category": "AI Governance"},
+            {"name": "AI Automation in Manufacturing", "category": "Industrial AI"},
+            {"name": "AI Career Opportunities", "category": "Career"},
+            {"name": "AI Transforming Supply Chains", "category": "Logistics Technology"},
+            {"name": "AI for Social Good", "category": "Social Impact"}
         ]
         
         for topic in topics:
@@ -291,15 +291,28 @@ class LinkedInScanner:
             if topic in topic_name:
                 return 1.0
         
-        # Check for related terms in astronomy/physics/education domains
-        astronomy_terms = ["star", "galaxy", "telescope", "planet", "moon", "nasa", "space"]
-        physics_terms = ["quantum", "particle", "energy", "theory", "mechanics"]
-        education_terms = ["learning", "student", "teach", "education", "stem", "school"]
+        # Check for related terms in AI/ML domains
+        ai_terms = ["ai", "artificial intelligence", "machine learning", "ml", "deep learning", 
+                    "neural network", "algorithm", "automation", "intelligent", "smart"]
+        application_terms = ["healthcare", "medical", "education", "business", "enterprise", 
+                            "environment", "climate", "supply chain", "logistics", "manufacturing"]
+        impact_terms = ["solving", "transforming", "improving", "optimizing", "enhancing", 
+                       "revolutionizing", "real-world", "practical", "use case", "application"]
         
-        # Check for domain-specific terms
-        for term in astronomy_terms + physics_terms + education_terms:
+        # Check for AI-related terms
+        for term in ai_terms:
             if term in topic_name:
-                return 0.8
+                return 0.9
+        
+        # Check for application domain terms
+        for term in application_terms:
+            if term in topic_name:
+                return 0.7
+        
+        # Check for impact/real-world terms
+        for term in impact_terms:
+            if term in topic_name:
+                return 0.6
         
         # Default low relevance for unrelated topics
         return 0.1
@@ -319,19 +332,23 @@ class LinkedInScanner:
         formats = [
             {
                 "name": "Carousel",
-                "description": "Multi-slide posts presenting scientific concepts or educational content"
+                "description": "Multi-slide posts presenting AI use cases and real-world applications"
             },
             {
                 "name": "Text post with stats",
-                "description": "Text-based posts highlighting key statistics or research findings"
+                "description": "Text-based posts highlighting AI impact metrics and business outcomes"
             },
             {
                 "name": "Industry report",
-                "description": "Detailed analysis of industry trends with graphics and data"
+                "description": "Detailed analysis of AI trends in business, healthcare, or other industries with data visualizations"
             },
             {
-                "name": "Career advice",
-                "description": "Tips and guidance for professionals in scientific fields"
+                "name": "Case study",
+                "description": "Before/after posts showing AI implementation results and ROI"
+            },
+            {
+                "name": "Thought leadership",
+                "description": "Professional insights on AI strategy, ethics, and future of work"
             }
         ]
         

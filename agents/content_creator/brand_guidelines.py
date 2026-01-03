@@ -36,9 +36,9 @@ class BrandGuidelinesManager:
         if guidelines_path:
             self.load_guidelines(guidelines_path)
         else:
-            # If no guidelines provided, use default science/education brand voice
+            # If no guidelines provided, use default AI-focused brand voice
             self.guidelines = self._get_default_guidelines()
-            logger.info("Using default brand guidelines")
+            logger.info("Using default brand guidelines for AI-focused content")
     
     def load_guidelines(self, guidelines_path: str) -> bool:
         """
@@ -122,7 +122,7 @@ class BrandGuidelinesManager:
         Get platform-specific guidelines.
         
         Args:
-            platform: Platform name (twitter, instagram, linkedin)
+            platform: Platform name (twitter, instagram, linkedin, facebook)
             
         Returns:
             Dictionary of platform-specific guidelines
@@ -147,7 +147,7 @@ class BrandGuidelinesManager:
     
     def _get_default_guidelines(self) -> Dict[str, Any]:
         """
-        Create default brand guidelines for a science/education brand.
+        Create default brand guidelines for AI-focused content about solving real-world problems.
         
         Returns:
             Dictionary containing default guidelines
@@ -155,47 +155,62 @@ class BrandGuidelinesManager:
         return {
             "voice": (
                 "Educational, enthusiastic, and authoritative but accessible. "
-                "Use friendly language that makes complex topics approachable. "
-                "Be conversational but accurate. Balance technical precision with "
-                "engaging explanations."
+                "Focus on real-world impact and practical applications of AI. "
+                "Use friendly language that makes AI concepts approachable. "
+                "Be conversational but accurate about AI capabilities. "
+                "Balance technical precision with engaging explanations. "
+                "Emphasize practical benefits and tangible outcomes. "
+                "Inspiring and forward-thinking tone."
             ),
             "content_requirements": (
-                "Always include the product name 'AstroCalc Pro' when relevant. "
-                "Focus on educational value. Use metric units for measurements. "
-                "Ensure all scientific claims are accurate. When possible, relate "
-                "content to real-world applications or current events."
+                "Focus on AI solving real-world problems and practical applications. "
+                "Emphasize tangible benefits and outcomes, not just technology. "
+                "Use clear, accessible language that explains AI concepts. "
+                "Ensure all AI claims are accurate and substantiated. "
+                "Relate content to current trends and real-world use cases. "
+                "Include examples of AI applications in healthcare, education, business, environment, etc. "
+                "Highlight success stories and case studies when relevant."
             ),
             "prohibited": (
                 "Avoid political statements. No religious references. "
                 "Don't criticize other brands or products. "
-                "No exaggerated or unsubstantiated claims. "
-                "Avoid overly technical jargon without explanation."
+                "No exaggerated or unsubstantiated AI claims. "
+                "Avoid overly technical jargon without explanation. "
+                "No fear-mongering about AI. "
+                "No speculative or unproven AI capabilities."
             ),
             "visual_style": (
-                "Clean, modern aesthetic with deep space blues and cosmic purples. "
-                "Prefer scientific illustrations over abstract art. "
-                "Educational diagrams should be clear and labeled."
+                "Clean, modern aesthetic with tech-forward theme. "
+                "Use modern tech illustrations, real-world application visuals, and data visualizations. "
+                "Clear infographics showing AI impact and use cases."
             ),
             "product_mentions": (
-                "Refer to our product as 'AstroCalc Pro' on first mention, then "
-                "'AstroCalc' or 'the app' in subsequent mentions. "
-                "Highlight one feature per post. Phrase as a benefit, not just a feature."
+                "Focus on AI solutions and outcomes, not specific products. "
+                "Emphasize benefits and real-world impact. "
+                "Highlight one AI application or use case per post. "
+                "Phrase as a benefit, not just a technology feature."
             ),
             "platforms": {
                 "twitter": {
-                    "tone": "More casual, brief but impactful",
-                    "hashtags": ["#AstroCalcPro", "#Astronomy", "#SpaceScience"],
-                    "cta": "Encourage clicks to profile link"
+                    "tone": "Casual, brief but impactful, trend-aware",
+                    "hashtags": ["#AI", "#MachineLearning", "#AISolves", "#TechForGood", "#AIApplications", "#RealWorldAI"],
+                    "cta": "Encourage engagement and discussion about AI solutions"
                 },
                 "instagram": {
-                    "tone": "Visual first, focus on awe and wonder",
-                    "hashtags": ["#AstroCalcPro", "#Astronomy", "#SpaceLovers", "#AstronomyFacts"],
-                    "cta": "Encourage profile visits and app downloads"
+                    "tone": "Visual first, focus on impact and transformation",
+                    "hashtags": ["#AI", "#MachineLearning", "#AISolves", "#TechForGood", "#AIforGood", "#AIApplications", "#RealWorldAI", "#Innovation"],
+                    "cta": "Encourage profile visits and sharing of AI success stories"
                 },
                 "linkedin": {
                     "tone": "Professional, educational focus, industry insights",
-                    "hashtags": ["#SpaceTech", "#STEM", "#ScienceEducation"],
-                    "cta": "Position as thought leaders, encourage professional discussion"
+                    "hashtags": ["#AI", "#MachineLearning", "#ArtificialIntelligence", "#TechInnovation", "#DigitalTransformation", "#AIinBusiness"],
+                    "cta": "Position as thought leaders, encourage professional discussion about AI applications"
+                },
+                "facebook": {
+                    "tone": "Engaging, community-focused, accessible",
+                    "hashtags": ["#AI", "#MachineLearning", "#AISolves", "#TechForGood", "#AIApplications", "#Innovation"],
+                    "cta": "Encourage community engagement and sharing of AI impact stories",
+                    "focus": "Use the highest trending topic related to AI solving real-world problems"
                 }
             }
         } 

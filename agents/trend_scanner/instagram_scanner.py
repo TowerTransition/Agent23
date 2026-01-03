@@ -45,10 +45,10 @@ class InstagramScanner:
     
     def _generate_hashtag_variations(self, topics: List[str]) -> List[str]:
         """
-        Generate hashtag variations from topics.
+        Generate hashtag variations from topics focused on AI solving real-world problems.
         
         Args:
-            topics: List of topic keywords
+            topics: List of topic keywords (AI-focused)
             
         Returns:
             List of hashtag variations
@@ -56,24 +56,40 @@ class InstagramScanner:
         hashtags = []
         
         for topic in topics:
-            # Add the basic topic as a hashtag (remove spaces)
-            hashtags.append(topic.replace(" ", ""))
+            # Add the basic topic as a hashtag (remove spaces, lowercase)
+            topic_clean = topic.lower().replace(" ", "")
+            hashtags.append(topic_clean)
             
-            # Add common variations (e.g., plurals, alternative forms)
-            if topic == "astronomy":
-                hashtags.extend(["astronomyphotography", "astronomylovers", "astronomyday"])
-            elif topic == "space":
-                hashtags.extend(["spacex", "spaceexploration", "spacetravel", "spacescience"])
-            elif topic == "physics":
-                hashtags.extend(["physicsfun", "physicsmemes", "physicsclass", "quantumphysics"])
-            elif topic == "education":
-                hashtags.extend(["educationmatters", "scienceeducation", "stemeducation"])
-            elif topic == "telescope":
-                hashtags.extend(["telescopes", "telescopephotography", "jameswebbtelescope"])
+            # Add common AI-focused variations
+            if "ai" in topic.lower() or "artificial intelligence" in topic.lower():
+                hashtags.extend(["ai", "artificialintelligence", "machinelearning", "ml", "aiinnovation", 
+                               "aitech", "airevolution", "aifuture", "aiapplications"])
+            elif "machine learning" in topic.lower() or "ml" in topic.lower():
+                hashtags.extend(["machinelearning", "ml", "deeplearning", "neuralnetworks", 
+                               "datascience", "mlmodels"])
+            elif "healthcare" in topic.lower() or "health" in topic.lower():
+                hashtags.extend(["aihealthcare", "aihealth", "medicalai", "healthtech", 
+                               "aiinmedicine", "digitalhealth"])
+            elif "education" in topic.lower():
+                hashtags.extend(["aieducation", "edtech", "aiineducation", "learningai", 
+                               "educationalai", "smartlearning"])
+            elif "business" in topic.lower():
+                hashtags.extend(["aibusiness", "businessai", "aiforbusiness", "enterpriseai", 
+                               "aiautomation", "businessintelligence"])
+            elif "environment" in topic.lower() or "climate" in topic.lower():
+                hashtags.extend(["aienvironment", "climateai", "greenai", "sustainableai", 
+                               "ai4climate", "environmentalai"])
+            elif "real world" in topic.lower() or "real-world" in topic.lower():
+                hashtags.extend(["airealworld", "realworldai", "aiapplications", "practicalai", 
+                               "aiusecases", "airealworldproblems"])
+            elif "for good" in topic.lower() or "forgood" in topic.lower():
+                hashtags.extend(["aiforgood", "ai4good", "ethicalai", "responsibleai", 
+                               "socialgoodai", "positiveai"])
             
-            # Add any general topic with "photo" or "pic" suffix
-            hashtags.append(f"{topic.replace(' ', '')}photo")
-            hashtags.append(f"{topic.replace(' ', '')}pic")
+            # Add variations with common suffixes
+            hashtags.append(f"{topic_clean}tech")
+            hashtags.append(f"{topic_clean}innovation")
+            hashtags.append(f"{topic_clean}applications")
         
         # Remove duplicates
         return list(set(hashtags))
@@ -209,7 +225,7 @@ class InstagramScanner:
     
     def _detect_popular_formats(self) -> List[Dict[str, str]]:
         """
-        Detect popular content formats currently used on Instagram.
+        Detect popular content formats currently used on Instagram for AI content.
         
         Returns:
             List of dictionaries describing popular content formats
@@ -219,19 +235,23 @@ class InstagramScanner:
         formats = [
             {
                 "name": "Carousel",
-                "description": "Multi-image posts explaining scientific concepts"
+                "description": "Multi-image posts explaining AI applications and use cases"
             },
             {
                 "name": "Reels",
-                "description": "Short-form vertical videos showcasing experiments or space visuals"
+                "description": "Short-form vertical videos showcasing AI demonstrations and real-world applications"
             },
             {
                 "name": "Infographic",
-                "description": "Educational information presented in visually appealing graphics"
+                "description": "Educational information about AI solving real-world problems in visually appealing graphics"
             },
             {
-                "name": "Behind-the-scenes",
-                "description": "Photos or videos showing telescopes, observatories, or labs"
+                "name": "Case Study",
+                "description": "Before/after posts showing AI impact in healthcare, business, or other industries"
+            },
+            {
+                "name": "Data Visualization",
+                "description": "Charts and graphs showing AI results and metrics"
             }
         ]
         

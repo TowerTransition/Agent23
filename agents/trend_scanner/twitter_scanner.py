@@ -146,7 +146,7 @@ class TwitterScanner:
     
     def _calculate_relevance(self, trend_name: str) -> float:
         """
-        Calculate relevance score of a trend to our topics of interest.
+        Calculate relevance score of a trend to our AI-focused topics of interest.
         
         Args:
             trend_name: The name of the trend
@@ -161,10 +161,29 @@ class TwitterScanner:
             if topic in trend_name:
                 return 1.0
         
-        # Basic NLP could be implemented here to detect semantic similarity
-        # For now, just return a lower score for trends that might be partially relevant
+        # Check for AI/ML specific terms
+        ai_terms = ["ai", "artificial intelligence", "machine learning", "ml", "deep learning", 
+                    "neural network", "algorithm", "automation", "intelligent", "smart tech"]
+        for term in ai_terms:
+            if term in trend_name:
+                return 0.9
+        
+        # Check for application domain terms
+        application_terms = ["healthcare", "medical", "education", "business", "enterprise", 
+                            "environment", "climate", "supply chain", "logistics", "manufacturing"]
+        for term in application_terms:
+            if term in trend_name:
+                return 0.7
+        
+        # Check for impact/real-world terms
+        impact_terms = ["solving", "transforming", "improving", "optimizing", "enhancing", 
+                       "revolutionizing", "real-world", "practical", "use case", "application"]
+        for term in impact_terms:
+            if term in trend_name:
+                return 0.6
+        
+        # Check for partial matches (e.g., "ai" in "aihealthcare")
         for topic in self.relevant_topics:
-            # Check for partial matches (e.g., "space" in "spacecraft")
             if any(word.startswith(topic) or topic.startswith(word) 
                    for word in trend_name.split()):
                 return 0.5
@@ -184,19 +203,23 @@ class TwitterScanner:
         formats = [
             {
                 "name": "Thread",
-                "description": "Multi-tweet threads explaining complex topics"
+                "description": "Multi-tweet threads explaining AI use cases and real-world applications"
             },
             {
                 "name": "Infographic",
-                "description": "Visual data presentations and explanations"
+                "description": "Visual data presentations showing AI impact metrics and business outcomes"
             },
             {
                 "name": "Poll",
-                "description": "Interactive polls asking followers' opinions"
+                "description": "Interactive polls asking followers about AI adoption and experiences"
             },
             {
                 "name": "Video",
-                "description": "Short educational or explanatory videos"
+                "description": "Short videos showcasing AI demonstrations and case studies"
+            },
+            {
+                "name": "Case Study",
+                "description": "Before/after posts showing AI implementation results and ROI"
             }
         ]
         

@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+
+{% block title %}Agent Management - AI Agents{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h1><i class="bi bi-gear"></i> Agent Management</h1>
+</div>
+
+<div class="card">
+    <div class="card-header">
+        <h5 class="mb-0">Configure Agents</h5>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Configuration</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for agent in agents %}
+                    <tr>
+                        <td><strong>{{ agent.name }}</strong></td>
+                        <td>{{ agent.get_agent_type_display }}</td>
+                        <td>
+                            {% if agent.is_active %}
+                                <span class="badge bg-success">Active</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Inactive</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <small class="text-muted">
+                                {% for key, value in agent.config_data.items %}
+                                    <span class="badge bg-light text-dark">{{ key }}: {{ value }}</span>
+                                {% empty %}
+                                    No configuration
+                                {% endfor %}
+                            </small>
+                        </td>
+                        <td>
+                            <form method="POST" class="d-inline">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="toggle_active">
+                                <input type="hidden" name="agent_id" value="{{ agent.id }}">
+                                <button type="submit" class="btn btn-sm btn-{% if agent.is_active %}warning{% else %}success{% endif %}">
+                                    {% if agent.is_active %}
+                                        <i class="bi bi-pause"></i> Deactivate
+                                    {% else %}
+                                        <i class="bi bi-play"></i> Activate
+                                    {% endif %}
+                                </button>
+                            </form>
+                            <button class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#configModal{{ agent.id }}">
+                                <i class="bi bi-pencil"></i> Edit
+                            </button>
+                        </td>
+                    </tr>
+                    
+                    <!-- Edit Config Modal -->
+                    <div class="modal fade" id="configModal{{ agent.id }}" tabindex="-1">
+                        <div class="modal-dialog">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">Edit {{ agent.name }} Configuration</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                </div>
+                                <form method="POST">
+                                    {% csrf_token %}
+                                    <div class="modal-body">
+                                        <input type="hidden" name="action" value="update_config">
+                                        <input type="hidden" name="agent_id" value="{{ agent.id }}">
+                                        <div class="mb-3">
+                                            <label class="form-label">Configuration Key</label>
+                                            <input type="text" name="config_key" class="form-control" placeholder="e.g., refresh_frequency">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Configuration Value</label>
+                                            <input type="text" name="config_value" class="form-control" placeholder="e.g., 3600">
+                                        </div>
+                                    </div>
+                                    <div class="modal-footer">
+                                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="text-center text-muted py-4">No agents configured</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+

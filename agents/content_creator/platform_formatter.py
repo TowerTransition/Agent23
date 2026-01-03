@@ -36,18 +36,27 @@ class PlatformFormatter:
                 "ideal_image_ratio": "16:9"
             },
             "instagram": {
-                "max_length": 2200,
+                "max_length": 1000,  # Shorter posts perform better - most people don't like to read long content
                 "hashtag_limit": 30,
                 "ideal_image_ratio": "1:1"
             },
             "linkedin": {
-                "max_length": 3000,
+                "max_length": 1000,  # Shorter posts perform better - most people don't like to read long content
                 "hashtag_limit": 5,
                 "ideal_image_ratio": "1.91:1"
+            },
+            "facebook": {
+                "max_length": 1000,  # Shorter posts perform better - most people don't like to read long content
+                "hashtag_limit": 5,
+                "ideal_image_ratio": "1.91:1"  # Landscape format works well for Facebook
             }
         }
         
-        self.logger.info("PlatformFormatter initialized")
+        # Get attribution settings
+        self.attribution = self.brand_guidelines.get("attribution", {})
+        self.attribution_enabled = self.attribution.get("enabled", False)
+        
+        self.logger.info("PlatformFormatter initialized (attribution enabled: %s)", self.attribution_enabled)
     
     def format_for_platform(
         self, 
@@ -59,7 +68,7 @@ class PlatformFormatter:
         
         Args:
             content: Dictionary containing generated content
-            platform: Target platform (twitter, instagram, linkedin)
+            platform: Target platform (twitter, instagram, linkedin, facebook)
             
         Returns:
             Formatted content dictionary
@@ -75,6 +84,8 @@ class PlatformFormatter:
             return self._format_for_instagram(content)
         elif platform == "linkedin":
             return self._format_for_linkedin(content)
+        elif platform == "facebook":
+            return self._format_for_facebook(content)
         
         return content
     
@@ -99,12 +110,33 @@ class PlatformFormatter:
         if hashtags:
             formatted["hashtags"] = hashtags
         
+        # Add attribution if enabled (before checking length)
+        if self.attribution_enabled:
+            attribution_line = self.attribution.get("default_line", "")
+            if attribution_line:
+                # Add attribution with a line break
+                text = text.rstrip() + "\n\n" + attribution_line
+        
         # Check if text exceeds max length
         if len(text) > constraints["max_length"]:
-            # Truncate text
-            trunc_length = constraints["max_length"] - 3  # Account for ellipsis
-            formatted["text"] = text[:trunc_length] + "..."
+            # Truncate text, but try to preserve attribution
+            if self.attribution_enabled:
+                attribution_line = self.attribution.get("default_line", "")
+                attribution_len = len(attribution_line) + 2  # +2 for \n\n
+                # Reserve space for attribution
+                trunc_length = constraints["max_length"] - attribution_len - 3
+                if trunc_length > 0:
+                    formatted["text"] = text[:trunc_length] + "..." + "\n\n" + attribution_line
+                else:
+                    # Not enough space, just truncate
+                    trunc_length = constraints["max_length"] - 3
+                    formatted["text"] = text[:trunc_length] + "..."
+            else:
+                trunc_length = constraints["max_length"] - 3
+                formatted["text"] = text[:trunc_length] + "..."
             self.logger.warning(f"Twitter text truncated from {len(text)} to {constraints['max_length']} characters")
+        else:
+            formatted["text"] = text
         
         # Set image aspect ratio
         formatted["image_ratio"] = constraints["ideal_image_ratio"]
@@ -137,11 +169,27 @@ class PlatformFormatter:
         if hashtags:
             formatted["hashtags"] = hashtags
         
+        # Add attribution if enabled (before checking length)
+        if self.attribution_enabled:
+            attribution_line = self.attribution.get("default_line", "")
+            if attribution_line:
+                caption = caption.rstrip() + "\n\n" + attribution_line
+        
         # Check if caption exceeds max length
         if len(caption) > constraints["max_length"]:
-            # Truncate caption
-            trunc_length = constraints["max_length"] - 3  # Account for ellipsis
-            formatted["caption"] = caption[:trunc_length] + "..."
+            # Truncate caption, but try to preserve attribution
+            if self.attribution_enabled:
+                attribution_line = self.attribution.get("default_line", "")
+                attribution_len = len(attribution_line) + 2  # +2 for \n\n
+                trunc_length = constraints["max_length"] - attribution_len - 3
+                if trunc_length > 0:
+                    formatted["caption"] = caption[:trunc_length] + "..." + "\n\n" + attribution_line
+                else:
+                    trunc_length = constraints["max_length"] - 3
+                    formatted["caption"] = caption[:trunc_length] + "..."
+            else:
+                trunc_length = constraints["max_length"] - 3
+                formatted["caption"] = caption[:trunc_length] + "..."
             self.logger.warning(f"Instagram caption truncated from {len(caption)} to {constraints['max_length']} characters")
         else:
             formatted["caption"] = caption
@@ -175,18 +223,96 @@ class PlatformFormatter:
         if hashtags:
             formatted["hashtags"] = hashtags
         
+        # Add attribution if enabled (use long_form for LinkedIn if space allows)
+        if self.attribution_enabled:
+            long_form = self.attribution.get("long_form", "")
+            default_line = self.attribution.get("default_line", "")
+            if long_form and len(text) + len(long_form) + 2 <= constraints["max_length"]:
+                text = text.rstrip() + "\n\n" + long_form
+            elif default_line:
+                text = text.rstrip() + "\n\n" + default_line
+        
         # Check if text exceeds max length
         if len(text) > constraints["max_length"]:
-            # Truncate text
-            trunc_length = constraints["max_length"] - 3  # Account for ellipsis
-            formatted["text"] = text[:trunc_length] + "..."
+            # Truncate text, but try to preserve attribution
+            if self.attribution_enabled:
+                default_line = self.attribution.get("default_line", "")
+                attribution_len = len(default_line) + 2
+                trunc_length = constraints["max_length"] - attribution_len - 3
+                if trunc_length > 0:
+                    formatted["text"] = text[:trunc_length] + "..." + "\n\n" + default_line
+                else:
+                    trunc_length = constraints["max_length"] - 3
+                    formatted["text"] = text[:trunc_length] + "..."
+            else:
+                trunc_length = constraints["max_length"] - 3
+                formatted["text"] = text[:trunc_length] + "..."
             self.logger.warning(f"LinkedIn text truncated from {len(text)} to {constraints['max_length']} characters")
+        else:
+            formatted["text"] = text
         
         # Set image aspect ratio
         formatted["image_ratio"] = constraints["ideal_image_ratio"]
         
         # Set platform
         formatted["platform"] = "linkedin"
+        
+        return formatted
+    
+    def _format_for_facebook(self, content: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Format content for Facebook.
+        
+        Args:
+            content: Dictionary containing generated content
+            
+        Returns:
+            Formatted content dictionary
+        """
+        formatted = content.copy()
+        constraints = self.platform_constraints["facebook"]
+        
+        # Get text content
+        text = formatted.get("text", "")
+        
+        # Extract hashtags
+        hashtags = self.extract_hashtags(text)
+        if hashtags:
+            formatted["hashtags"] = hashtags
+        
+        # Add attribution if enabled (use long_form for Facebook if space allows)
+        if self.attribution_enabled:
+            long_form = self.attribution.get("long_form", "")
+            default_line = self.attribution.get("default_line", "")
+            if long_form and len(text) + len(long_form) + 2 <= constraints["max_length"]:
+                text = text.rstrip() + "\n\n" + long_form
+            elif default_line:
+                text = text.rstrip() + "\n\n" + default_line
+        
+        # Check if text exceeds max length (shorter posts perform better - most people don't like to read long content)
+        if len(text) > constraints["max_length"]:
+            # Truncate text, but try to preserve attribution
+            if self.attribution_enabled:
+                default_line = self.attribution.get("default_line", "")
+                attribution_len = len(default_line) + 2
+                trunc_length = constraints["max_length"] - attribution_len - 3
+                if trunc_length > 0:
+                    formatted["text"] = text[:trunc_length] + "..." + "\n\n" + default_line
+                else:
+                    trunc_length = constraints["max_length"] - 3
+                    formatted["text"] = text[:trunc_length] + "..."
+            else:
+                trunc_length = constraints["max_length"] - 3
+                formatted["text"] = text[:trunc_length] + "..."
+            self.logger.warning(f"Facebook text truncated from {len(text)} to {constraints['max_length']} characters")
+        else:
+            formatted["text"] = text
+        
+        # Set image aspect ratio
+        formatted["image_ratio"] = constraints["ideal_image_ratio"]
+        
+        # Set platform
+        formatted["platform"] = "facebook"
         
         return formatted
     

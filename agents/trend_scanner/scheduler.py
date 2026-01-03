@@ -1,7 +1,9 @@
 """
 Scheduler - Module for periodically running the TrendScannerAgent.
 
-Uses APScheduler to run the agent at specified intervals and generate trend reports.
+Uses APScheduler to run the agent at specified intervals and generate trend reports
+focused on AI solving real-world problems, artificial intelligence applications,
+and machine learning innovations.
 """
 
 import logging
@@ -23,6 +25,9 @@ logger = logging.getLogger("TrendScannerScheduler")
 class TrendScannerScheduler:
     """
     Scheduler for running the TrendScannerAgent at specified intervals.
+    
+    Scans social media platforms for trending AI topics and articles about
+    AI solving real-world problems, generating reports for content planning.
     """
     
     def __init__(
@@ -39,7 +44,7 @@ class TrendScannerScheduler:
             interval_hours: Hours between trend scanning runs
             report_dir: Directory to save trend reports
             cache_duration: Time in seconds before refreshing trends data
-            relevant_topics: List of topics of interest
+            relevant_topics: List of AI-focused topics of interest (defaults to AI solving real-world problems)
         """
         self.interval_hours = interval_hours
         self.report_dir = report_dir
@@ -108,7 +113,7 @@ class TrendScannerScheduler:
             # Add a header for the saved file
             file_content = [
                 "="*80,
-                "SOCIAL MEDIA TREND REPORT",
+                "SOCIAL MEDIA TREND REPORT - AI SOLVING REAL-WORLD PROBLEMS",
                 "="*80,
                 "",
                 report,
@@ -116,7 +121,8 @@ class TrendScannerScheduler:
                 "="*80,
                 f"Report generated at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                 "This report follows the TrendScannerAgent MDC format, focusing on 2-3 key trends per platform.",
-                "Use this data to guide your content creation strategy for maximum engagement.",
+                "Trends are focused on AI solving real-world problems, artificial intelligence applications,",
+                "and machine learning innovations. Use this data to guide your content creation strategy.",
                 "="*80
             ]
             

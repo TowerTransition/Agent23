@@ -1,0 +1,109 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb_checkpoints
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+
+# Cache
+cache/
+.cache/
+
+# Model files (large files - don't commit)
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+models/
+checkpoints/
+
+# PEFT adapter models (user-specific, don't commit)
+**/Elevaretinyllma/
+**/elevaretinyllma/
+**/*adapter*/
+
+# Test outputs
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+
+# OS files
+Thumbs.db
+.DS_Store
+desktop.ini
+
+# Compiled Python
+*.pyc
+*.pyo
+*.pyd
+
+# State files (may contain sensitive data)
+**/content_state.json
+**/post_log.json
+**/lens_state.json
+
+# API keys and secrets (if any)
+*.key
+*.pem
+secrets/
+credentials/
+
+# Large data files
+*.csv
+*.json.bak
+*.parquet
+
+# Test artifacts
+test_outputs/
+test_results/

@@ -1,0 +1,162 @@
+{
+  "brand_name": "Elevare by Amaziah",
+  "attribution": {
+    "enabled": true,
+    "style": "subtle",
+    "default_line": "- Elevare by Amaziah",
+    "long_form": "Insights from Elevare by Amaziah, building real-world systems with AI."
+  },
+  "voice": {
+    "Assisted Living": {
+      "tone": "Warm, grounded, supportive, and community-oriented",
+      "traits": [
+        "Lead with clarity and calm reassurance",
+        "Focus on families, caregivers, and practical next steps",
+        "Use plain language (avoid clinical jargon unless necessary)",
+        "Highlight dignity, safety, and quality of life",
+        "No medical advice; encourage professional consultation when needed"
+      ],
+      "key_themes": [
+        "Care options and support navigation",
+        "Family decision-making under pressure",
+        "Safety and compassionate routines",
+        "Trust-building and transparency",
+        "Empowerment through clear next steps"
+      ]
+    },
+    "Foreclosures": {
+      "tone": "Empathetic, steady, non-judgmental, and empowering",
+      "traits": [
+        "Acknowledge stress without fear-mongering",
+        "Do not provide legal advice or specific legal strategy",
+        "Focus on acceptance, uncertainty tolerance, and action orientation",
+        "Use short, direct sentences that reduce overwhelm",
+        "Offer service availability and a next step without promising outcomes"
+      ],
+      "key_themes": [
+        "Uncertainty tolerance enables action",
+        "Staying grounded under pressure",
+        "Organizing documents and timelines (non-advice framing)",
+        "Exploring options with qualified professionals",
+        "Empowerment and steadiness"
+      ]
+    },
+    "Trading Futures": {
+      "tone": "Analytical, risk-first, disciplined, and process-driven",
+      "traits": [
+        "Emphasize rules, risk management, and consistency",
+        "Avoid profit promises or hype language",
+        "Use correct trading terminology when it improves clarity",
+        "Focus on process over outcomes",
+        "Encourage journaling, backtesting, and controlled sizing"
+      ],
+      "key_themes": [
+        "Risk management and preservation",
+        "Consistency and rule adherence",
+        "Execution quality and discipline",
+        "Review loops (journal, stats, screenshots)",
+        "Avoiding emotional decision-making"
+      ]
+    },
+    "General": {
+      "tone": "Clear, practical, and grounded",
+      "traits": [
+        "Speak to real problems and real people",
+        "Avoid exaggerated claims",
+        "Keep it actionable and respectful"
+      ],
+      "key_themes": [
+        "Clarity, structure, next steps"
+      ]
+    }
+  },
+  "content_requirements": [
+    "Stay within the trained domains: Assisted Living, Foreclosures, or Trading Futures",
+    "Do not give legal advice, financial advice, or medical advice",
+    "Use calming, grounded language that reduces overwhelm",
+    "Focus on acceptance and next-step orientation (clarity enables action)",
+    "Avoid promises or guaranteed outcomes",
+    "Use domain terminology only when it improves clarity",
+    "End with an empowering line and brand footer when attribution is enabled"
+  ],
+  "prohibited_content": [
+    "Political statements",
+    "Religious references",
+    "Criticism of other brands or products",
+    "Guaranteed outcomes (e.g., 'we will stop foreclosure')",
+    "Fear-mongering",
+    "Exaggerated or unsubstantiated claims",
+    "Overly technical jargon without explanation"
+  ],
+  "visual_style": {
+    "description": "Clean, modern aesthetic with grounded, real-world tone",
+    "colors": ["#0066FF", "#00D4FF", "#FFFFFF", "#1A1A1A", "#00FF88"],
+    "preferred_imagery": "Human-centered scenes, calm typography, simple icons, practical visuals aligned to the domain",
+    "diagrams": "Simple, clear visuals that reduce overwhelm (no hype graphics)"
+  },
+  "product_mentions": {
+    "first_mention": "Elevare by Amaziah",
+    "subsequent_mentions": ["Elevare", "Elevare by Amaziah"],
+    "emphasis": "Focus on clarity, support, and real-world systems (no outcome promises)"
+  },
+  "platforms": {
+    "twitter": {
+      "tone": "Brief, direct, and punchy",
+      "hashtags": ["#AssistedLiving", "#ForeclosureSupport", "#FuturesTrading", "#RiskManagement"],
+      "cta": "Invite a reply or simple engagement",
+      "max_length": 280,
+      "format": "Single post, 1-2 short sentences"
+    },
+    "instagram": {
+      "tone": "Human, supportive, and story-driven",
+      "hashtags": ["#AssistedLiving", "#Caregiving", "#Homeowners", "#TradingDiscipline"],
+      "cta": "Encourage saves/shares and profile visits",
+      "max_length": 2200,
+      "format": "2-5 short paragraphs with line breaks"
+    },
+    "linkedin": {
+      "tone": "Professional, structured, insight-focused",
+      "hashtags": ["#AssistedLiving", "#Housing", "#Trading", "#RiskManagement"],
+      "cta": "Encourage thoughtful professional discussion",
+      "max_length": 3000,
+      "format": "6-10 sentences, 1-2 short paragraphs"
+    },
+    "facebook": {
+      "tone": "Engaging, community-focused, accessible",
+      "hashtags": ["#AssistedLiving", "#ForeclosureSupport", "#FuturesTrading", "#Clarity"],
+      "cta": "Encourage comments and sharing",
+      "focus": "Domain-first: speak to the lived situation, not trends",
+      "max_length": 5000,
+      "format": "4-6 sentences, ending with one question"
+    }
+  },
+  "product_features": [
+    {
+      "name": "Foreclosure Support Messaging",
+      "description": "Grounded, non-advice content that helps homeowners reduce overwhelm and take the next step",
+      "benefit": "More clarity under pressure and better follow-through"
+    },
+    {
+      "name": "Assisted Living Communication",
+      "description": "Family-friendly, supportive content that helps people understand care options and next steps",
+      "benefit": "More confidence and less confusion during care decisions"
+    },
+    {
+      "name": "Futures Trading Discipline Content",
+      "description": "Process-driven content focused on risk management, consistency, and execution",
+      "benefit": "Improved discipline and reduced emotional decision-making"
+    }
+  ],
+  "target_audience": {
+    "primary": [
+      "Homeowners under foreclosure pressure seeking clarity and support",
+      "Families exploring assisted living or senior care options",
+      "Futures traders focused on discipline and risk management"
+    ],
+    "secondary": [
+      "Caregivers and adult children navigating care decisions",
+      "Real estate adjacent audiences seeking non-advice support framing",
+      "Trading communities focused on process and consistency"
+    ]
+  }
+}

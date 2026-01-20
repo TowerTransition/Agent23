@@ -1,0 +1,16 @@
+# Agent23 Dependencies
+# Core dependencies for content creation and scheduling
+
+# PEFT and model loading (for fine-tuned model support)
+peft>=0.18.0
+transformers>=4.30.0
+torch>=2.0.0
+
+# HTTP requests and API calls
+requests>=2.28.0
+
+# Timezone handling for scheduling
+pytz>=2023.3
+
+# Optional: For image generation (Stability AI)
+# stability-sdk>=0.8.0  # Uncomment if using image generation

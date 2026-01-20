@@ -109,12 +109,13 @@ test_outputs/
 test_results/
 
 # Exclude other agent directories (do not push anything from Agent22)
+# Repository root is at C:/Users/Administrator, so these patterns work from there
 Desktop/AGENT 22/
 Desktop/AGENT22/
 Desktop/agent-22/
-Desktop/AGENT 22/**
-Desktop/AGENT22/**
-Desktop/agent-22/**
+AGENT 22/
+AGENT22/
+agent-22/
 **/AGENT 22/
 **/AGENT22/
 **/agent-22/

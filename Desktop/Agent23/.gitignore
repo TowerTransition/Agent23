@@ -108,10 +108,13 @@ credentials/
 test_outputs/
 test_results/
 
-# Exclude other agent directories
-../AGENT 22/
-../AGENT22/
-../agent-22/
+# Exclude other agent directories (do not push anything from Agent22)
+Desktop/AGENT 22/
+Desktop/AGENT22/
+Desktop/agent-22/
+Desktop/AGENT 22/**
+Desktop/AGENT22/**
+Desktop/agent-22/**
 **/AGENT 22/
 **/AGENT22/
 **/agent-22/

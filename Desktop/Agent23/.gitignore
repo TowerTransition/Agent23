@@ -107,3 +107,11 @@ credentials/
 # Test artifacts
 test_outputs/
 test_results/
+
+# Exclude other agent directories
+../AGENT 22/
+../AGENT22/
+../agent-22/
+**/AGENT 22/
+**/AGENT22/
+**/agent-22/

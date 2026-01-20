@@ -109,7 +109,7 @@ test_outputs/
 test_results/
 
 # Exclude other agent directories (do not push anything from Agent22)
-# Repository root is at C:/Users/Administrator, so these patterns work from there
+# IMPORTANT: Only Agent23 files should be tracked
 Desktop/AGENT 22/
 Desktop/AGENT22/
 Desktop/agent-22/
@@ -119,3 +119,7 @@ agent-22/
 **/AGENT 22/
 **/AGENT22/
 **/agent-22/
+
+# Exclude everything in Desktop except Agent23 (repository root is at C:/Users/Administrator)
+Desktop/*
+!Desktop/Agent23/

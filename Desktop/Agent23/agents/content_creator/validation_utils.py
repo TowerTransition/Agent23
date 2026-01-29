@@ -1,7 +1,15 @@
 # agents/content_creator/validation_utils.py
 """
-Simplified validation utilities that lean on the fine-tuned model.
-Minimal post-processing - trust the model output more.
+Validation utilities aligned with PEFT training data format.
+
+TRAINING DATA FORMAT (what the model learned):
+- 4-6 sentences in body
+- NO questions - all posts end with STATEMENTS
+- Structure: Opening thesis → Problem → AI supports... → Closing benefit statement
+- Tagline: "Real-world systems. Real clarity."
+- Signature: "— Elevare by Amaziah"
+- Exactly 4 hashtags
+- Tone: Observational, supportive, grounded
 """
 from __future__ import annotations
 
@@ -11,6 +19,9 @@ from typing import List, Optional, Tuple
 
 
 SIGNATURE = "— Elevare by Amaziah"
+# Training data uses this exact tagline before signature
+TAGLINE = "Real-world systems. Real clarity."
+# Legacy - kept for backward compatibility during extraction
 INSIGHTS_LINE = "Insights from Elevare by Amaziah, building real-world systems with AI."
 
 
@@ -41,6 +52,10 @@ def extract_body(full_post_text: str) -> BodyExtractionResult:
     extracted_hashtags = list(dict.fromkeys(re.findall(r"#([A-Za-z0-9_]+)", text)))  # Preserve order, de-dupe
 
     # 3) Remove footer (added in code, not by model)
+    # Order matters: tagline comes before signature in training data
+    if TAGLINE in text:
+        text = text.split(TAGLINE, 1)[0].strip()
+        removed_footer = True
     if SIGNATURE in text:
         text = text.split(SIGNATURE, 1)[0].strip()
         removed_footer = True
@@ -81,59 +96,113 @@ def count_sentences_on_body(full_post_text: str) -> Tuple[int, List[str], BodyEx
     return len(sentences), sentences, extracted
 
 
-def ensure_exactly_one_question_at_end(body: str) -> str:
+def ends_with_statement(sentence: str) -> bool:
     """
-    Ensure body ends with exactly one question mark.
-    Simplified - trust the fine-tuned model more, minimal intervention.
-    Operates on BODY ONLY. Call this before adding footer/hashtags.
+    Check if a sentence ends with a statement (period), not a question.
+    Training data shows all posts end with statements, never questions.
+    """
+    sentence = sentence.strip()
+    if not sentence:
+        return False
+
+    # Statement ends with period (or could be missing punctuation)
+    return sentence.endswith(".") or not sentence.endswith("?")
+
+
+def is_valid_closing_statement(sentence: str) -> bool:
+    """
+    Validate that the closing sentence matches training data patterns.
+    Training data closing statements are typically:
+    - Short benefit statements (3-8 words)
+    - Pattern: "X supports/protects/enables/strengthens Y."
+    - Examples: "Clarity supports confident decisions."
+    """
+    sentence = sentence.strip().rstrip(".")
+    if not sentence:
+        return False
+
+    # Valid closing patterns from training data
+    valid_patterns = [
+        r'^(Clarity|Structure|Understanding|Visibility|Alignment|Consistency|Coordination|Organization|Preparation|Awareness)\s+(supports|protects|enables|strengthens|improves|reduces|maintains|builds|creates|preserves)',
+        r'^(Clear|Visible|Organized|Aligned|Consistent|Reduced|Better|Stronger)\s+\w+\s+(support|protect|enable|strengthen|improve|reduce|maintain|build|create|preserve)',
+        r'\b(supports|protects|enables|strengthens|improves|reduces|maintains|builds|creates|preserves)\s+\w+\.$',
+    ]
+
+    for pattern in valid_patterns:
+        if re.search(pattern, sentence, re.IGNORECASE):
+            return True
+
+    # Also accept any sentence ending with a period that isn't a question
+    return not sentence.endswith("?")
+
+
+def validate_sentence_count(sentences: List[str], min_count: int = 4, max_count: int = 6) -> bool:
+    """
+    Validate sentence count matches training data expectations.
+    Training data: 4-6 sentences in body (before tagline).
+    """
+    count = len(sentences)
+    return min_count <= count <= max_count
+
+
+def get_sentence_count_range(platform: str) -> Tuple[int, int]:
+    """
+    Get expected sentence count range by platform.
+    Based on training data analysis: 4-6 sentences is typical.
+    """
+    # Training data doesn't vary much by platform - all follow same format
+    # But we can allow some platform-specific flexibility
+    if platform in ("twitter", "x"):
+        return (2, 4)  # Shorter for Twitter
+    elif platform == "linkedin":
+        return (4, 8)  # Can be slightly longer for LinkedIn
+    elif platform == "instagram":
+        return (3, 5)  # Medium length for Instagram
+    else:  # facebook and default
+        return (4, 6)  # Standard training format
+
+
+def ensure_ends_with_statement(body: str, domain: Optional[str] = None) -> str:
+    """
+    Ensure body ends with a statement (period), NOT a question.
+    Training data shows all posts end with declarative statements.
+
+    Args:
+        body: The body text to validate/fix
+        domain: Optional domain context (for compatibility)
+
+    Returns:
+        Body text ending with a statement
     """
     body = (body or "").strip()
     if not body:
         return body
 
-    q_count = body.count("?")
-    
-    # Already has exactly one question at the end - perfect!
-    if q_count == 1 and body.endswith("?"):
-        return body
-
-    # No question - add one at the end
-    if q_count == 0:
-        return body.rstrip(".!") + "?"
-
-    # Multiple questions - keep the last one, remove others
-    # Trust the model's sentence structure, just fix punctuation
     sentences = split_sentences(body)
     if not sentences:
-        return body.rstrip(".!") + "?"
+        return body
 
-    # Find the last sentence with a question
-    last_q_idx: Optional[int] = None
-    for i in range(len(sentences) - 1, -1, -1):
-        if "?" in sentences[i]:
-            last_q_idx = i
-            break
+    last = sentences[-1].strip()
 
-    if last_q_idx is not None:
-        # Extract the question sentence, remove extra ? and ensure it ends with exactly one ?
-        question_sentence = sentences[last_q_idx].replace("?", "").rstrip(".!") + "?"
-        
-        # Keep all other sentences (convert their ? to .)
-        fixed: List[str] = []
-        for i, s in enumerate(sentences):
-            if i != last_q_idx:
-                # Remove all ? and ensure it ends with .
-                cleaned = s.replace("?", "").rstrip(".!")
-                if cleaned:
-                    fixed.append(cleaned + ".")
-        
-        # Append the question sentence at the end
-        fixed.append(question_sentence)
-        return " ".join(fixed).strip()
-    
-    # No question found in any sentence - add ? to last sentence
-    if sentences:
-        sentences[-1] = sentences[-1].rstrip(".!") + "?"
-        return " ".join(sentences).strip()
-    
-    return body.rstrip(".!") + "?"
+    # If last sentence ends with question mark, convert to statement
+    if last.endswith("?"):
+        # Remove question mark and add period
+        last = last.rstrip("?").strip() + "."
+        sentences[-1] = last
+
+    # Ensure last sentence ends with period
+    if not last.endswith("."):
+        sentences[-1] = last + "."
+
+    return " ".join(sentences).strip()
+
+
+def ensure_exactly_one_question_at_end(body: str, domain: Optional[str] = None) -> str:
+    """
+    DEPRECATED: Training data shows NO questions in posts.
+    This function now calls ensure_ends_with_statement for backward compatibility.
+
+    The model was trained on posts that end with STATEMENTS, not questions.
+    """
+    # Convert any trailing question to statement
+    return ensure_ends_with_statement(body, domain)

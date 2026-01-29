@@ -4,8 +4,16 @@ Unit tests for validation_utils.
 Tests cover:
 - Body extraction (removes footer, hashtags, labels)
 - Sentence splitting
-- Question enforcement (exactly one question at end)
+- Statement enforcement (posts end with statements, NOT questions)
 - Count sentences helper
+- Sentence count range by platform
+
+TRAINING DATA FORMAT (what the model learned):
+- 4-6 sentences in body
+- NO questions - all posts end with STATEMENTS
+- Tagline: "Real-world systems. Real clarity."
+- Signature: "— Elevare by Amaziah"
+- Exactly 4 hashtags
 """
 
 import unittest
@@ -19,9 +27,15 @@ from agents.content_creator.validation_utils import (
     extract_body,
     split_sentences,
     count_sentences_on_body,
-    ensure_exactly_one_question_at_end,
+    ensure_ends_with_statement,
+    ensure_exactly_one_question_at_end,  # Deprecated - now calls ensure_ends_with_statement
+    ends_with_statement,
+    is_valid_closing_statement,
+    validate_sentence_count,
+    get_sentence_count_range,
     BodyExtractionResult,
     SIGNATURE,
+    TAGLINE,
     INSIGHTS_LINE
 )
 
@@ -46,6 +60,15 @@ class TestValidationUtils(unittest.TestCase):
         result = extract_body(text)
         self.assertNotIn(SIGNATURE, result.body)
         self.assertNotIn(INSIGHTS_LINE, result.body)
+        self.assertIn("body content", result.body)
+        self.assertTrue(result.removed_footer)
+
+    def test_extract_body_removes_tagline(self):
+        """Test extract_body removes tagline (training data format)."""
+        text = f"This is the body content.\n\n{TAGLINE}\n{SIGNATURE}"
+        result = extract_body(text)
+        self.assertNotIn(TAGLINE, result.body)
+        self.assertNotIn(SIGNATURE, result.body)
         self.assertIn("body content", result.body)
         self.assertTrue(result.removed_footer)
 
@@ -116,6 +139,16 @@ class TestValidationUtils(unittest.TestCase):
         self.assertIn("tag1", result.extracted_hashtags)
         self.assertTrue(result.removed_footer)
 
+    def test_extract_body_with_training_format_footer(self):
+        """Test extract_body with exact training data footer format."""
+        text = f"Clarity supports confident decisions.\n\n{TAGLINE}\n{SIGNATURE}\n\n#RealWorldAI #ClarityMatters #SystemDesign #ProcessClarity"
+        result = extract_body(text)
+        self.assertIn("Clarity supports", result.body)
+        self.assertNotIn(TAGLINE, result.body)
+        self.assertNotIn(SIGNATURE, result.body)
+        self.assertTrue(result.removed_footer)
+        self.assertEqual(len(result.extracted_hashtags), 4)
+
     # -------------------------
     # split_sentences Tests
     # -------------------------
@@ -182,56 +215,88 @@ class TestValidationUtils(unittest.TestCase):
         self.assertIn("hashtag", result.extracted_hashtags)
 
     # -------------------------
-    # ensure_exactly_one_question_at_end Tests
+    # ends_with_statement Tests
     # -------------------------
 
-    def test_ensure_exactly_one_question_at_end_already_correct(self):
-        """Test ensure_exactly_one_question_at_end when already correct."""
-        body = "This is sentence one. This is sentence two. This is a question?"
-        result = ensure_exactly_one_question_at_end(body)
-        self.assertTrue(result.endswith("?"))
-        self.assertEqual(result.count("?"), 1)
+    def test_ends_with_statement_period(self):
+        """Test ends_with_statement returns True for period."""
+        self.assertTrue(ends_with_statement("This is a statement."))
 
-    def test_ensure_exactly_one_question_at_end_no_question(self):
-        """Test ensure_exactly_one_question_at_end adds question if missing."""
-        body = "This is sentence one. This is sentence two."
-        result = ensure_exactly_one_question_at_end(body)
-        self.assertTrue(result.endswith("?"))
+    def test_ends_with_statement_question(self):
+        """Test ends_with_statement returns False for question."""
+        self.assertFalse(ends_with_statement("Is this a question?"))
 
-    def test_ensure_exactly_one_question_at_end_multiple_questions(self):
-        """Test ensure_exactly_one_question_at_end fixes multiple questions."""
+    def test_ends_with_statement_no_punctuation(self):
+        """Test ends_with_statement returns True for no punctuation."""
+        self.assertTrue(ends_with_statement("This has no punctuation"))
+
+    def test_ends_with_statement_empty(self):
+        """Test ends_with_statement returns False for empty string."""
+        self.assertFalse(ends_with_statement(""))
+
+    # -------------------------
+    # is_valid_closing_statement Tests
+    # -------------------------
+
+    def test_is_valid_closing_statement_clarity_pattern(self):
+        """Test is_valid_closing_statement with training data pattern."""
+        self.assertTrue(is_valid_closing_statement("Clarity supports confident decisions."))
+
+    def test_is_valid_closing_statement_structure_pattern(self):
+        """Test is_valid_closing_statement with structure pattern."""
+        self.assertTrue(is_valid_closing_statement("Structure protects performance."))
+
+    def test_is_valid_closing_statement_understanding_pattern(self):
+        """Test is_valid_closing_statement with understanding pattern."""
+        self.assertTrue(is_valid_closing_statement("Understanding enables better choices."))
+
+    def test_is_valid_closing_statement_question(self):
+        """Test is_valid_closing_statement rejects question."""
+        self.assertFalse(is_valid_closing_statement("Is this a question?"))
+
+    # -------------------------
+    # ensure_ends_with_statement Tests (NEW - replaces question tests)
+    # -------------------------
+
+    def test_ensure_ends_with_statement_already_correct(self):
+        """Test ensure_ends_with_statement when already correct."""
+        body = "This is sentence one. This is sentence two. This is a statement."
+        result = ensure_ends_with_statement(body)
+        self.assertTrue(result.endswith("."))
+        self.assertFalse(result.endswith("?"))
+
+    def test_ensure_ends_with_statement_converts_question(self):
+        """Test ensure_ends_with_statement converts question to statement."""
+        body = "This is sentence one. Is this a question?"
+        result = ensure_ends_with_statement(body)
+        self.assertTrue(result.endswith("."))
+        self.assertNotIn("?", result)
+
+    def test_ensure_ends_with_statement_multiple_questions(self):
+        """Test ensure_ends_with_statement with multiple questions."""
         body = "What is this? What is that? What is the answer?"
-        result = ensure_exactly_one_question_at_end(body)
-        # Should have only one question at the end
-        self.assertTrue(result.endswith("?"))
-        # Other questions should be converted to periods
-        self.assertLessEqual(result.count("?"), 1)
+        result = ensure_ends_with_statement(body)
+        # Should end with period, not question
+        self.assertTrue(result.endswith("."))
+        # Last sentence should be converted to statement
+        self.assertIn("What is the answer", result)
 
-    def test_ensure_exactly_one_question_at_end_question_not_at_end(self):
-        """Test ensure_exactly_one_question_at_end moves question to end."""
-        body = "What is this? This is a statement."
-        result = ensure_exactly_one_question_at_end(body)
-        self.assertTrue(result.endswith("?"))
-        # The question should be at the end
-        self.assertIn("statement", result)
-        self.assertIn("What is this", result)
-
-    def test_ensure_exactly_one_question_at_end_empty_string(self):
-        """Test ensure_exactly_one_question_at_end with empty string."""
-        result = ensure_exactly_one_question_at_end("")
+    def test_ensure_ends_with_statement_empty_string(self):
+        """Test ensure_ends_with_statement with empty string."""
+        result = ensure_ends_with_statement("")
         self.assertEqual(result, "")
 
-    def test_ensure_exactly_one_question_at_end_whitespace_only(self):
-        """Test ensure_exactly_one_question_at_end with whitespace."""
-        result = ensure_exactly_one_question_at_end("   ")
+    def test_ensure_ends_with_statement_whitespace_only(self):
+        """Test ensure_ends_with_statement with whitespace."""
+        result = ensure_ends_with_statement("   ")
         self.assertEqual(result.strip(), "")
 
-    def test_ensure_exactly_one_question_at_end_preserves_sentence_order(self):
-        """Test ensure_exactly_one_question_at_end preserves sentence order."""
+    def test_ensure_ends_with_statement_preserves_sentence_order(self):
+        """Test ensure_ends_with_statement preserves sentence order."""
         body = "First sentence. Second sentence. Third sentence?"
-        result = ensure_exactly_one_question_at_end(body)
-        # Should preserve order, just ensure question at end
-        self.assertTrue(result.endswith("?"))
+        result = ensure_ends_with_statement(body)
+        # Should preserve order, just ensure statement at end
+        self.assertTrue(result.endswith("."))
         # Check that sentences are in order
         first_idx = result.find("First")
         second_idx = result.find("Second")
@@ -239,30 +304,150 @@ class TestValidationUtils(unittest.TestCase):
         self.assertLess(first_idx, second_idx)
         self.assertLess(second_idx, third_idx)
 
+    def test_ensure_ends_with_statement_adds_period_if_missing(self):
+        """Test ensure_ends_with_statement adds period if missing."""
+        body = "First sentence. Second sentence"
+        result = ensure_ends_with_statement(body)
+        self.assertTrue(result.endswith("."))
+
+    # -------------------------
+    # ensure_exactly_one_question_at_end Tests (DEPRECATED - now converts to statement)
+    # -------------------------
+
+    def test_ensure_exactly_one_question_at_end_already_correct(self):
+        """Test deprecated function converts to statement."""
+        body = "This is sentence one. This is sentence two. This is a question?"
+        result = ensure_exactly_one_question_at_end(body)
+        # Now returns statement (deprecated behavior)
+        self.assertTrue(result.endswith("."))
+
+    def test_ensure_exactly_one_question_at_end_no_question(self):
+        """Test deprecated function keeps statement."""
+        body = "This is sentence one. This is sentence two."
+        result = ensure_exactly_one_question_at_end(body)
+        # Should remain a statement
+        self.assertTrue(result.endswith("."))
+
+    def test_ensure_exactly_one_question_at_end_multiple_questions(self):
+        """Test deprecated function converts all questions."""
+        body = "What is this? What is that? What is the answer?"
+        result = ensure_exactly_one_question_at_end(body)
+        # Should convert to statement
+        self.assertTrue(result.endswith("."))
+
+    def test_ensure_exactly_one_question_at_end_question_not_at_end(self):
+        """Test deprecated function converts question to statement."""
+        body = "What is this? This is a statement."
+        result = ensure_exactly_one_question_at_end(body)
+        self.assertTrue(result.endswith("."))
+        self.assertIn("statement", result)
+
+    def test_ensure_exactly_one_question_at_end_empty_string(self):
+        """Test deprecated function with empty string."""
+        result = ensure_exactly_one_question_at_end("")
+        self.assertEqual(result, "")
+
+    def test_ensure_exactly_one_question_at_end_whitespace_only(self):
+        """Test deprecated function with whitespace."""
+        result = ensure_exactly_one_question_at_end("   ")
+        self.assertEqual(result.strip(), "")
+
+    def test_ensure_exactly_one_question_at_end_preserves_sentence_order(self):
+        """Test deprecated function preserves sentence order."""
+        body = "First sentence. Second sentence. Third sentence?"
+        result = ensure_exactly_one_question_at_end(body)
+        # Should preserve order, convert to statement
+        self.assertTrue(result.endswith("."))
+        first_idx = result.find("First")
+        second_idx = result.find("Second")
+        third_idx = result.find("Third")
+        self.assertLess(first_idx, second_idx)
+        self.assertLess(second_idx, third_idx)
+
     def test_ensure_exactly_one_question_at_end_fixes_punctuation(self):
-        """Test ensure_exactly_one_question_at_end fixes punctuation."""
+        """Test deprecated function converts to statement."""
         body = "First sentence. Second sentence?"
         result = ensure_exactly_one_question_at_end(body)
-        # Should end with question mark
-        self.assertTrue(result.endswith("?"))
-        # First sentence should end with period
-        self.assertIn("First sentence.", result)
+        # Should end with period (statement)
+        self.assertTrue(result.endswith("."))
 
     def test_ensure_exactly_one_question_at_end_with_exclamation(self):
-        """Test ensure_exactly_one_question_at_end handles exclamation."""
+        """Test deprecated function with exclamation."""
         body = "First sentence! Second sentence."
         result = ensure_exactly_one_question_at_end(body)
-        # Should convert to question at end
-        self.assertTrue(result.endswith("?"))
+        # Should remain a statement
+        self.assertTrue(result.endswith("."))
 
     def test_ensure_exactly_one_question_at_end_complex_case(self):
-        """Test ensure_exactly_one_question_at_end with complex case."""
+        """Test deprecated function with complex case."""
         body = "What is this? What about that? This is a statement. Another statement."
         result = ensure_exactly_one_question_at_end(body)
-        # Should have exactly one question at the end
-        self.assertTrue(result.endswith("?"))
-        # Should preserve most content
+        # Should end with statement
+        self.assertTrue(result.endswith("."))
         self.assertIn("statement", result)
+
+    # -------------------------
+    # validate_sentence_count Tests
+    # -------------------------
+
+    def test_validate_sentence_count_within_range(self):
+        """Test validate_sentence_count with valid count."""
+        sentences = ["One.", "Two.", "Three.", "Four.", "Five."]
+        self.assertTrue(validate_sentence_count(sentences, 4, 6))
+
+    def test_validate_sentence_count_too_few(self):
+        """Test validate_sentence_count with too few sentences."""
+        sentences = ["One.", "Two."]
+        self.assertFalse(validate_sentence_count(sentences, 4, 6))
+
+    def test_validate_sentence_count_too_many(self):
+        """Test validate_sentence_count with too many sentences."""
+        sentences = ["One.", "Two.", "Three.", "Four.", "Five.", "Six.", "Seven.", "Eight."]
+        self.assertFalse(validate_sentence_count(sentences, 4, 6))
+
+    def test_validate_sentence_count_at_min(self):
+        """Test validate_sentence_count at minimum."""
+        sentences = ["One.", "Two.", "Three.", "Four."]
+        self.assertTrue(validate_sentence_count(sentences, 4, 6))
+
+    def test_validate_sentence_count_at_max(self):
+        """Test validate_sentence_count at maximum."""
+        sentences = ["One.", "Two.", "Three.", "Four.", "Five.", "Six."]
+        self.assertTrue(validate_sentence_count(sentences, 4, 6))
+
+    # -------------------------
+    # get_sentence_count_range Tests
+    # -------------------------
+
+    def test_get_sentence_count_range_twitter(self):
+        """Test get_sentence_count_range for Twitter."""
+        min_s, max_s = get_sentence_count_range("twitter")
+        self.assertEqual(min_s, 2)
+        self.assertEqual(max_s, 4)
+
+    def test_get_sentence_count_range_linkedin(self):
+        """Test get_sentence_count_range for LinkedIn."""
+        min_s, max_s = get_sentence_count_range("linkedin")
+        self.assertEqual(min_s, 4)
+        self.assertEqual(max_s, 8)
+
+    def test_get_sentence_count_range_instagram(self):
+        """Test get_sentence_count_range for Instagram."""
+        min_s, max_s = get_sentence_count_range("instagram")
+        self.assertEqual(min_s, 3)
+        self.assertEqual(max_s, 5)
+
+    def test_get_sentence_count_range_facebook(self):
+        """Test get_sentence_count_range for Facebook (default)."""
+        min_s, max_s = get_sentence_count_range("facebook")
+        self.assertEqual(min_s, 4)
+        self.assertEqual(max_s, 6)
+
+    def test_get_sentence_count_range_default(self):
+        """Test get_sentence_count_range for unknown platform."""
+        min_s, max_s = get_sentence_count_range("unknown")
+        self.assertEqual(min_s, 4)
+        self.assertEqual(max_s, 6)
 
 
 if __name__ == '__main__':

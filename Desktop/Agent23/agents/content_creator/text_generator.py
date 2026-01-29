@@ -1,20 +1,22 @@
 """
-Text Generator - Smaller, cleaner module for generating platform posts via:
-1) Direct local model inference (PEFT adapter) OR
-2) HTTP endpoint (OpenAI-compatible) with Ollama /api/generate fallback.
+Text Generator - Simplified module optimized for fine-tuned PEFT models.
 
-GOALS (your issues):
-- Lean on the trained bot: minimal prompts, no giant brand-guideline blocks.
-- Fix footer duplication: footer appended ONLY in code, never required from the model.
-- Fix "no hashtags" problem: hashtags are generated/ensured in code (model optional).
-- Keep the "exactly one question" rule on BODY ONLY (footer + hashtags come after).
+TWO MODES:
+1) Direct PEFT model (PREFERRED): Minimal prompts, trusts fine-tuned model output
+2) HTTP endpoint (fallback): More aggressive cleaning for non-fine-tuned models
+
+DESIGN PRINCIPLES:
+- Fine-tuned model: Ultra-minimal prompts, minimal post-processing (trust the training)
+- HTTP endpoint: More detailed prompts, aggressive cleaning (don't trust as much)
+- Footer/hashtags: Always added in code (never by model)
+- Validation: Always enforced (one question, platform length limits)
 
 ENV VARS:
-- PEFT_ADAPTER_PATH (optional) + BASE_MODEL_NAME (optional) -> direct inference mode
-- LOCAL_LLM_ENDPOINT (OpenAI-compatible e.g. http://localhost:11434/v1/chat/completions)
-- LOCAL_LLM_MODEL (optional, default: tinyllama)
-- LOCAL_LLM_API_KEY (optional)
-- DISABLE_JSON_REASONING=true (optional)  # defaults to true in direct-model mode anyway
+- PEFT_ADAPTER_PATH -> Uses fine-tuned model directly (preferred)
+- BASE_MODEL_NAME -> Base model for PEFT (default: TinyLlama/TinyLlama-1.1B-Chat-v1.0)
+- LOCAL_LLM_ENDPOINT -> HTTP endpoint fallback (OpenAI-compatible)
+- LOCAL_LLM_MODEL -> Model name for HTTP endpoint (default: tinyllama)
+- ALLOW_DEFAULT_LLM_ENDPOINT -> Allow default localhost:11434 (default: false)
 
 OUTPUT:
 - dict: {"platform":..., "text":..., "hashtags":[...], "meta":{...}}
@@ -45,15 +47,22 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(level
 
 
 # ---- Brand footer (ONLY handled in code) ----
+# These MUST match exactly what the model was trained on
 SIGNATURE = "— Elevare by Amaziah"
+# Training data uses this exact tagline BEFORE the signature
+TAGLINE = "Real-world systems. Real clarity."
+# Legacy line - kept for backward compatibility during extraction
 INSIGHTS_LINE = "Insights from Elevare by Amaziah, building real-world systems with AI."
 
 # Import validation utilities
 from .validation_utils import (
     extract_body as extract_body_result,
-    ensure_exactly_one_question_at_end,
+    ensure_ends_with_statement,
+    ensure_exactly_one_question_at_end,  # Deprecated - now calls ensure_ends_with_statement
     split_sentences,
-    BodyExtractionResult
+    get_sentence_count_range,
+    BodyExtractionResult,
+    TAGLINE as VALIDATION_TAGLINE
 )
 
 # Backward compatibility: simple extract_body function
@@ -145,6 +154,11 @@ class TextGenerator:
         platform_key = (platform or "facebook").strip().lower()
         temp = temperature if temperature is not None else self.temperature
 
+        # Store domain for sanitizer
+        lens_plan = context.get("lens_plan") or {}
+        domain = context.get("domain") or lens_plan.get("domain") or ""
+        self._current_domain = domain
+
         # 1) Build minimal prompt that matches your trained format expectation
         prompt = self._build_minimal_prompt(context, platform_key)
 
@@ -153,10 +167,21 @@ class TextGenerator:
         for attempt in range(1, self.max_retries + 2):
             try:
                 raw = self._call_model(platform_key, prompt, max_tokens=max_length, temperature=temp)
-                body = self._clean_model_output(raw)
-                body = self._post_process_content(body)
-                body = self._sanitize_prompt_echo(body)
-                body = self._enforce_one_question_and_length(body, platform_key)
+                
+                # For fine-tuned model (PEFT), trust it more - minimal processing
+                if self.use_direct_model:
+                    body = self._minimal_clean_for_finetuned(raw)
+                else:
+                    # HTTP endpoint mode - more aggressive cleaning needed
+                    body = self._clean_model_output(raw)
+                    body = self._post_process_content(body)
+                    body = self._sanitize_prompt_echo(body)
+                
+                if not body.strip():
+                    raise ValueError("Model returned empty text after cleaning")
+
+                # Always validate structure (sentence count, ends with statement)
+                body = self._enforce_sentence_count_and_format(body, platform_key)
 
                 # 3) Footer AFTER validation (prevents footer breaking question rule)
                 final_text = self._append_footer(body, platform_key)
@@ -192,38 +217,133 @@ class TextGenerator:
     # -------------------------
     # Prompting
     # -------------------------
+    def _get_training_example(self, domain: str) -> str:
+        """
+        Get a training example for the domain to use as few-shot example.
+        Format matches EXACTLY what the model was trained on.
+
+        Training data structure:
+        - Opening thesis statement
+        - Problem/context (1-2 sentences)
+        - "AI supports/helps by..." sentence
+        - Closing benefit statement
+        - "Real-world systems. Real clarity." tagline
+        - "— Elevare by Amaziah" signature
+        - Exactly 4 hashtags
+
+        NO QUESTIONS - all posts end with declarative statements.
+        """
+        domain_lower = (domain or "").lower()
+
+        # Examples copied directly from training data (train.jsonl)
+        examples = {
+            "foreclosure": """Foreclosure involves many moving parts.
+
+When information isn't coordinated, small details fall through the cracks and stress compounds.
+
+AI supports clarity by coordinating information—helping people see how pieces relate without stepping into legal guidance.
+
+Coordination reduces avoidable errors.
+
+Real-world systems. Real clarity.
+— Elevare by Amaziah
+
+#RealWorldAI #HousingStability #ProcessClarity #SystemDesign""",
+
+            "trading": """Fast markets challenge focus.
+
+When speed increases, skipped steps and emotional reactions become more likely.
+
+AI supports focus by reinforcing structure and reducing noise—without giving trading advice.
+
+Focused execution supports disciplined trading.
+
+Real-world systems. Real clarity.
+— Elevare by Amaziah
+
+#TradingSystems #ExecutionFocus #RiskDiscipline #RealWorldAI""",
+
+            "assisted": """Confidence grows with clarity.
+
+When families don't understand environments and care models, uncertainty rises.
+
+AI supports clarity by organizing information and simplifying comparisons—without offering placement advice.
+
+Clear understanding supports confident decisions.
+
+Real-world systems. Real clarity.
+— Elevare by Amaziah
+
+#ResidentMatching #CareDecisions #ClarityMatters #RealWorldAI"""
+        }
+
+        # Match domain
+        if "foreclosure" in domain_lower:
+            return examples["foreclosure"]
+        elif "trading" in domain_lower:
+            return examples["trading"]
+        elif "assisted" in domain_lower or "care" in domain_lower:
+            return examples["assisted"]
+
+        # Default to foreclosure example
+        return examples["foreclosure"]
+
     def _build_minimal_prompt(self, context: Dict[str, Any], platform: str) -> str:
         """
         Build minimal prompt for fine-tuned model.
-        The model generates content itself - we don't need trend data.
-        Uses lens_plan or context directly.
+        Since model is fine-tuned, we can be very minimal - just provide context.
+
+        Training data format (what the model learned):
+        - 4-6 sentences
+        - NO questions - ends with statement
+        - "AI supports/helps by..." phrasing
+        - Tagline + signature at end
         """
-        # Get title/description from context or lens_plan (not trend)
+        # Get domain for example selection (only if using HTTP mode)
+        domain = context.get("domain") or ""
+        lens = context.get("lens_plan") or {}
+        if not domain:
+            domain = lens.get("domain") or ""
+
+        # Get title/description from context or lens_plan
         title = context.get("title") or ""
         desc = context.get("description") or ""
-        
-        # Check lens_plan for context info
-        lens = context.get("lens_plan") or {}
+
         if not title:
             title = (lens.get("title") or lens.get("context") or "AI in real-world workflows").strip()
         if not desc:
             desc = (lens.get("description") or "").strip()
-        
-        # If still no title, use a default
+
         if not title:
             title = "AI in real-world workflows"
-        
-        # Get decision/constraint/risk_owner from lens_plan
+
+        # For fine-tuned model: use training format labels only.
+        # The model was trained on CONTEXT/PROBLEM/AI_SUPPORT/REINFORCEMENT.
+        # No instructional English — it gets echoed verbatim in output.
+        if self.use_direct_model:
+            parts = [f"CONTEXT: {title}"]
+            if desc:
+                parts.append(f"PROBLEM: {desc}")
+            parts.append("AI_SUPPORT:")
+            return "\n".join(parts)
+
+        # For HTTP endpoint (not fine-tuned): include example
+        parts = []
+        parts.append("Generate a post in this EXACT format (note: ends with STATEMENT, not question):")
+        parts.append("")
+        parts.append(self._get_training_example(domain))
+        parts.append("")
+        parts.append("---")
+        parts.append("Now generate a similar post for this topic:")
+        parts.append(f"Topic: {title}")
+        if desc:
+            parts.append(f"Context: {desc}")
+
+        # Get decision/constraint/risk_owner from lens_plan (optional)
         decision = (lens.get("decision") or "").strip()
         constraint = (lens.get("constraint") or "").strip()
         risk_owner = (lens.get("risk_owner") or "").strip()
 
-        parts = [f"CONTEXT: {title}"]
-        if desc:
-            parts.append(desc)
-
-        # These are useful "operator" anchors but not big rule blocks.
-        # If they're empty, no harm.
         if decision:
             parts.append(f"Decision: {decision}")
         if constraint:
@@ -231,45 +351,50 @@ class TextGenerator:
         if risk_owner:
             parts.append(f"Risk owner: {risk_owner}")
 
-        # End instruction: short and consistent
+        # Platform-specific instruction (minimal)
+        parts.append("")
         parts.append(self._style_line(platform))
+        parts.append("Do NOT end with a question. End with a declarative statement.")
 
         return "\n".join([p for p in parts if p])
 
     def _style_line(self, platform: str) -> str:
+        """
+        Platform-specific style hints for HTTP mode.
+        NOTE: Training data shows NO questions - all posts end with statements.
+        """
         if platform in ("twitter", "x"):
-            return "Write one short post, max 270 characters, end with exactly one question."
+            return "Write 2-4 short sentences, max 270 characters. End with a statement."
         if platform == "linkedin":
-            return "Write 6-10 sentences, 1-2 short paragraphs, end with exactly one question."
+            return "Write 4-8 sentences, 1-2 short paragraphs. End with a statement."
         if platform == "instagram":
-            return "Write 2-5 short paragraphs, end with exactly one question."
-        return "Write 4-6 sentences, end with exactly one question."
+            return "Write 3-5 short sentences. End with a statement."
+        # Facebook and default - matches training data exactly
+        return "Write 4-6 sentences. End with a statement."
 
     def _system_message(self, platform: str) -> str:
-        # Different system messages for direct model (PEFT) vs HTTP endpoint
+        # For fine-tuned model: identity only, no instructions.
+        # The model echoes any instructional text. The training format
+        # (CONTEXT/PROBLEM/AI_SUPPORT/REINFORCEMENT) drives structure instead.
+        if self.use_direct_model:
+            return "You are Elevare by Amaziah."
+
+        # For HTTP endpoint (not fine-tuned): more detailed instructions
+        # NOTE: Training data shows NO questions - all posts end with statements
         if platform == "facebook":
-            if self.use_direct_model:
-                return (
-                    "Write a finished Facebook post as plain text. "
-                    "No headings. No lists. No numbered steps. "
-                    "Do not include template words like 'END'. "
-                    "Do not include hashtags. Do not include any signature or footer. "
-                    "Do not mention any brand names other than the content itself. "
-                    "Write 4-6 natural sentences and end with exactly one question."
-                )
-            else:
-                return (
-                    "Write a Facebook post. Output only the post text. "
-                    "4-6 sentences. End with exactly one question. "
-                    "No politics, religion, or exaggerated claims."
-                )
-        
+            return (
+                "Write a Facebook post. Output only the post text. "
+                "4-6 sentences. End with a declarative statement (NOT a question). "
+                "No politics, religion, or exaggerated claims."
+            )
+
         # For other platforms, use lean messages
         base = (
             "You write finished social posts only. "
             "No labels, no headings, no bullet lists, no meta-commentary. "
             "No politics or religion. Avoid exaggerated claims. "
-            "Frame AI as decision support/prioritization, not replacement."
+            "Frame AI as decision support/prioritization, not replacement. "
+            "End with a declarative statement, NOT a question."
         )
         if platform in ("twitter", "x"):
             return base + " Keep within 270 characters."
@@ -437,6 +562,7 @@ class TextGenerator:
     def _clean_model_output(self, raw: str) -> str:
         """
         Remove labels, meta-commentary, and instruction echoes.
+        Used for HTTP endpoint mode (not fine-tuned models).
         """
         text = raw.strip()
 
@@ -493,54 +619,217 @@ class TextGenerator:
 
         return text.strip()
 
-    def _post_process_content(self, text: str) -> str:
+    def _minimal_clean_for_finetuned(self, text: str) -> str:
         """
-        Additional post-processing on content.
+        Minimal cleanup for fine-tuned model output.
+        Trust the model - only remove obvious artifacts and prompt echoes.
         """
-        # --- PEFT cleanup: strip common adapter template garbage ---
-        if self.use_direct_model:
-            # remove numbered instruction lines like "4. Start by..."
-            text = re.sub(r'(?m)^\s*\d+\.\s+.*$', '', text)
-
-            # remove common template phrases
-            text = re.sub(r'(?i)\b4-6 sentences\.?\s*one question\.?\b', '', text)
-            text = re.sub(r'(?i)\bformal,\s*confident communication\.?\b', '', text)
-            text = re.sub(r'(?i)\bhandoffs\.\s*clear communication\.\b', 'Handoffs require clear communication.', text)
-
-            # remove END markers
-            text = re.sub(r'(?i)\bEND\b', '', text)
-
-            # remove any non-Elevare signatures the model emits
-            text = re.sub(r'(?m)^—\s*(?!Elevare by Amaziah).*$', '', text)
-
-            # remove hashtags entirely (we will add ours later from extraction logic)
-            text = re.sub(r'#\w+', '', text)
-
-            # Remove instruction-like fragments more aggressively
-            # Remove standalone instruction words/phrases
-            instruction_fragments = [
-                r'\bwith\s+one\s+question\b',
-                r'\bfollow\s+these\b',
-                r'\bcontinue\s+with\b',
-                r'\buntil\s+complete\b',
-                r'\bbe\s+clear\b',
-            ]
-            for pattern in instruction_fragments:
-                text = re.sub(pattern, '', text, flags=re.IGNORECASE)
-            
-            # Remove tiny stray fragments like "ds" (but preserve common short words)
-            # Only remove if it's not a common English word
-            common_short_words = {'a', 'i', 'to', 'of', 'in', 'on', 'at', 'is', 'it', 'be', 'as', 'an', 'or', 'if', 'do', 'we', 'he', 'so', 'up', 'go', 'no', 'me', 'my', 'us', 'am', 'ok'}
-            words = text.split()
-            filtered_words = [w for w in words if not (len(w) <= 2 and w.lower() not in common_short_words and w.islower())]
-            text = ' '.join(filtered_words)
-
-            # normalize whitespace/newlines
-            text = re.sub(r'\n{3,}', '\n\n', text)
-            text = re.sub(r'\s+', ' ', text).strip()
-        # --- end PEFT cleanup ---
+        text = text.strip()
+        
+        # Remove obvious markers that shouldn't be in output
+        text = re.sub(r'(?i)\bEND\b', '', text)
+        text = re.sub(r'(?m)^\s*(CONTEXT|PROBLEM|AI_SUPPORT|REINFORCEMENT|FOOTER|HASHTAGS)[:.]\s*', '', text)
+        
+        # Remove prompt instruction echoes (model sometimes copies these)
+        instruction_patterns = [
+            r'(?i)\bWrite\s+\d+[-–]\d+\s+sentences?[^.!?]*[.!?]?',
+            r'(?i)\bWrite\s+\d+\s+short\s+sentences?[^.!?]*[.!?]?',
+            r'(?i)\bend\s+with\s+exactly\s+one\s+question[^.!?]*[.!?]?',
+            r'(?i)\bwith\s+(?:exact(?:ly)?\s+)?one\s+question[^.!?]*[.!?]?',
+            r'(?i)\bWrite\s+one\s+short\s+post[^.!?]*[.!?]?',
+            r'(?i)\bmax\s+\d+\s+characters?[^.!?]*[.!?]?',
+            r'(?i)\b\d+[-–]\d+\s+sentences?\.?\s*',  # Catches standalone "4-6 sentences."
+            # Remove instruction echoes about answering questions
+            r'(?i)How\s+can\s+you\s+answering\s+this\s+question[^.!?]*[.!?]?',
+            r'(?i)answering\s+this\s+question[^.!?]*[.!?]?',
+            r'(?i)Then\s+continue\s+with[^.!?]*[.!?]?',
+            r'(?i)following\s+the\s+\w+\s+format[^.!?]*[.!?]?',
+            r'(?i)A\s+clear\s+question\s+at\s+the\s+of\s+this\s+process[^.!?]*[.!?]?',
+            r'(?i)helps\s+ensure\s+clarity\s+and\s+accuracy[^.!?]*[.!?]?',
+            # Catch any sentence containing both "answering" and "question" (instruction echo)
+            r'(?i)[^.!?]*answering[^.!?]*question[^.!?]*[.!?]',
+            # Catch continuation instructions
+            r'(?i)[^.!?]*continue\s+with\s+the\s+complete[^.!?]*[.!?]',
+            r'(?i)[^.!?]*complete\s+post\s+following[^.!?]*[.!?]',
+            # Additional patterns from test results
+            r'(?i)^\s*—\s*\d+[-–]\d+\s+sentences?\s+max\s*$',
+            r'(?i)^\s*—\s*End\s+with\s+question\.\s*$',
+            r'(?i)^\s*—\s*Exactly\s+one\s+complete\s+thought\.\s*$',
+            r'(?i)End\s+with\s+this\s+question:\s*',
+            r'(?i)End\s+with\s*[—:]\s*',  # "End with:" or "End with—"
+            r'(?i)^\s*END\b',  # Standalone END (word boundary)
+            r'(?i)^\s*—\s*End\.?\s*$',  # "— End" or "— End."
+            r'(?i)^\s*End\.?\s*$',  # Standalone "End" or "End."
+            r'(?i)^\s*\d+[-–]\d+\s+sentences?\.?\s*$',  # Standalone "4-6 sentences."
+            r'(?im)^\s*Question[:.!]?\s*$',
+            r'(?i)^\s*Answer:\s*',  # "Answer:" label
+            r'(?i)^\s*Response:\s*',  # "Response:" label
+            r'(?i)^\s*—\s*Q\.\s*',  # "— Q." pattern
+            r'(?i)^\s*–\s*Q\.\s*',  # "– Q." pattern (different dash)
+            r'(?i)Follow\s+by\s+posting\.?\s*$',  # "Follow by posting"
+            r'(?i)^\s*Four-step\s+approach\.?\s*$',  # "Four-step approach"
+            r'(?i)^\s*A\s+system\s+that\s+follows\s+these\s+four\s+steps:\s*$',  # "A system that follows these four steps:"
+            # Prompt phrases that can leak from system message / user prompt
+            r'(?i)\bWrite\s+a\s+(?:Facebook|Twitter|LinkedIn|Instagram|social\s+media)\s+post[^.!?]*[.!?]?',
+            r'(?i)\bWrite\s+a\s+post\s+in\s+the\s+[^.!?]*[.!?]?',
+            r'(?i)\bas\s+you\s+were\s+trained\s+on[^.!?]*[.!?]?',
+            # Imperative instruction sentences the model generates
+            # "ask this question:" label must be stripped BEFORE the "Then, [verb]"
+            # pattern, otherwise "Then, ask ... question: How...?" strips the question too
+            r'(?i)(?:Then,?\s+)?ask\s+this\s+question:\s*',
+            r'(?i)\bStart\s+by\s+\w+[^.!?]*[.!?]',
+            r'(?i)\bThen,?\s+(?:establish|define|set|provide|create|build|ensure|follow|apply|begin|start|use|make|prepare|organize|identify|maintain|track|update|verify|review|send|share|implement)[^.!?]*[.!?]',
+        ]
+        for pattern in instruction_patterns:
+            text = re.sub(pattern, '', text)
+        
+        # Remove label prefixes that might leak from prompt (Decision:, Constraint:, Risk owner:, Question:, Real-world example:)
+        # Also remove CONTEXT: and PROBLEM: labels (keep content)
+        text = re.sub(r'(?m)^\s*(Decision|Constraint|Risk owner|Risk Owner|Question|Real-world example|Real world example|CONTEXT|PROBLEM|AI_SUPPORT|REINFORCEMENT)[:.]\s*', '', text, flags=re.IGNORECASE)
+        
+        # Remove standalone constraint/risk owner/question/example lines (if model copied them)
+        text = re.sub(r'(?m)^\s*Constraint:\s*[^\n]+\n?', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'(?m)^\s*Risk owner:\s*[^\n]+\n?', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'(?m)^\s*Decision:\s*[^\n]+\n?', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'(?m)^\s*Question:\s*[^\n]+\n?', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'(?m)^\s*Answer:\s*[^\n]+\n?', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'(?m)^\s*Response:\s*[^\n]+\n?', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'(?m)^\s*Real-world example:\s*[^\n]+\n?', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'(?m)^\s*Real world example:\s*[^\n]+\n?', '', text, flags=re.IGNORECASE)
+        
+        # Remove instruction-like phrases (but keep the actual question/answer content)
+        # Remove labels with dashes first
+        text = re.sub(r'(?i)^\s*—\s*Question:\s*', '', text, flags=re.MULTILINE)
+        text = re.sub(r'(?i)^\s*—\s*Answer:\s*', '', text, flags=re.MULTILINE)
+        text = re.sub(r'(?i)^\s*—\s*Response:\s*', '', text, flags=re.MULTILINE)
+        text = re.sub(r'(?i)^\s*—\s*Q\.\s*', '', text, flags=re.MULTILINE)
+        text = re.sub(r'(?i)^\s*–\s*Q\.\s*', '', text, flags=re.MULTILINE)
+        # Remove standalone labels (without dashes) - these should already be removed above, but double-check
+        text = re.sub(r'(?i)^\s*Question:\s*', '', text, flags=re.MULTILINE)
+        text = re.sub(r'(?i)^\s*Answer:\s*', '', text, flags=re.MULTILINE)
+        text = re.sub(r'(?i)^\s*Response:\s*', '', text, flags=re.MULTILINE)
+        # Remove instruction phrases
+        text = re.sub(r'(?i)Follow\s+by\s+posting\.?\s*$', '', text, flags=re.MULTILINE)
+        text = re.sub(r'(?i)^\s*Four-step\s+approach\.?\s*$', '', text, flags=re.MULTILINE)
+        text = re.sub(r'(?i)^\s*A\s+system\s+that\s+follows\s+these\s+four\s+steps:\s*$', '', text, flags=re.MULTILINE)
+        
+        # Remove numbered list items that are clearly instruction format
+        # Remove lines like "1. Tracking of documents" if they follow instruction patterns
+        text = re.sub(r'(?i)^\s*\d+\.\s+(Tracking|Providing|Automating|Aligning|Identifying|Maintaining)\s+', '', text, flags=re.MULTILINE)
+        
+        # Remove brand artifacts and unwanted mentions
+        text = re.sub(r'\bclearlyai™?\b', '', text, flags=re.IGNORECASE)
+        # Remove trailing attribution patterns like "— foreclosure process coordination by clearlyai™?"
+        text = re.sub(r'\s*—\s*[^?]+\s+by\s+[^?]+\?', '', text, flags=re.IGNORECASE)
+        # Remove wrong signature formats like "— Topic by Elevare by Amaziah" or "— Topic by Elevare"
+        text = re.sub(r'—\s+[^—]+?\s+by\s+Elevare\s+by\s+Amaziah', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'—\s+[^—]+?\s+by\s+Elevare(?!\s+by\s+Amaziah)', '', text, flags=re.IGNORECASE)
+        # Remove wrong brand mentions like "— Cogora"
+        text = re.sub(r'—\s+Cogora\s*$', '', text, flags=re.IGNORECASE | re.MULTILINE)
+        # Remove repetitive dash patterns (like "— When clarity is clear...") but keep signature "— Elevare by Amaziah"
+        text = re.sub(r'^\s*—\s+(?!Elevare\s+by\s+Amaziah)([^—\n]+)$', r'\1', text, flags=re.MULTILINE | re.IGNORECASE)
+        
+        # Remove entire sentences that are clearly instruction echoes
+        # Split by sentence boundaries and filter
+        sentence_pattern = r'([^.!?]+[.!?]+)'
+        sentences = re.findall(sentence_pattern, text)
+        remaining_text = re.sub(sentence_pattern, '', text)  # Text that doesn't match sentence pattern
+        
+        instruction_indicators = [
+            r'answering\s+this\s+question',
+            r'continue\s+with\s+the\s+complete',
+            r'complete\s+post\s+following',
+            r'following\s+the\s+\w+\s+format',
+            r'clear\s+question\s+at\s+the\s+of',
+            r'helps\s+ensure\s+clarity\s+and\s+accuracy',
+            r'end\s+with\s+this\s+question',
+            r'end\s+with\s+question',
+            r'^\s*—\s*[^—]*\s+by\s+Elevare',  # Wrong signature format like "— Topic by Elevare"
+            r'Now\s+generate\s+a\s+similar\s+post\s+for:',  # Echo from training example prompt
+            r'^\s*—\s*End\.?\s*$',  # "— End" or "— End."
+            r'^\s*End\.?\s*$',  # Standalone "End" or "End."
+        ]
+        
+        cleaned_sentences = []
+        for sentence in sentences:
+            is_instruction = any(re.search(pattern, sentence, re.IGNORECASE) for pattern in instruction_indicators)
+            if not is_instruction:
+                cleaned_sentences.append(sentence)
+        
+        text = ''.join(cleaned_sentences) + remaining_text
+        
+        # Normalize whitespace (but preserve paragraph breaks)
+        text = re.sub(r'[ \t]+', ' ', text)  # Multiple spaces to single
+        text = re.sub(r'\n{3,}', '\n\n', text)  # Multiple newlines to double
         
         return text.strip()
+    
+    def _fix_incomplete_sentences(self, text: str) -> str:
+        """
+        Fix incomplete sentences like "AI clarity." -> "AI provides clarity."
+        """
+        # Split into sentences
+        sentences = split_sentences(text)
+        fixed_sentences = []
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            
+            # Check for incomplete patterns
+            # Pattern: "AI clarity." or "AI communication." -> "AI provides clarity."
+            incomplete_pattern = re.match(r'^AI\s+(clarity|communication|coordination|focus|support|guidance|information|updates|decisions|options)\.?$', sentence, re.IGNORECASE)
+            if incomplete_pattern:
+                noun = incomplete_pattern.group(1).lower()
+                # Convert to complete sentence
+                if noun == "clarity":
+                    sentence = "AI provides clarity."
+                elif noun == "communication":
+                    sentence = "AI enables communication."
+                elif noun == "coordination":
+                    sentence = "AI supports coordination."
+                elif noun == "focus":
+                    sentence = "AI helps maintain focus."
+                elif noun == "support":
+                    sentence = "AI provides support."
+                elif noun == "guidance":
+                    sentence = "AI offers guidance."
+                elif noun == "information":
+                    sentence = "AI organizes information."
+                elif noun == "updates":
+                    sentence = "AI delivers updates."
+                elif noun == "decisions":
+                    sentence = "AI supports decisions."
+                elif noun == "options":
+                    sentence = "AI presents options."
+            
+            # Pattern: "Families understand care options." - this is actually complete, keep it
+            # Pattern: "X understand Y" - complete sentence
+            
+            fixed_sentences.append(sentence)
+        
+        return " ".join(fixed_sentences)
+    
+    def _post_process_content(self, text: str) -> str:
+        """
+        Post-processing for HTTP endpoint mode (not fine-tuned).
+        More aggressive cleaning needed for non-fine-tuned models.
+        """
+        # Import sanitizer (simple version)
+        try:
+            from .sanitizer import sanitize_post
+            # Get domain from stored context if available
+            domain = getattr(self, '_current_domain', None)
+            return sanitize_post(text, domain=domain)
+        except ImportError:
+            # Fallback to basic cleanup if sanitizer not available
+            text = text.strip()
+            text = re.sub(r'(?i)\bEND\b', '', text)
+            text = re.sub(r'(?m)^\s*\d+\.\s+.*$', '', text)
+            text = re.sub(r'\s+', ' ', text)
+            text = re.sub(r'\n{3,}', '\n\n', text)
+            return text.strip()
 
     def _sanitize_prompt_echo(self, text: str) -> str:
         """
@@ -592,103 +881,172 @@ class TextGenerator:
         text = re.sub(r'\s+\.', '.', text)  # Remove space before period
         
         return text.strip()
+    
+    def _fix_incomplete_sentences(self, text: str) -> str:
+        """
+        Fix incomplete sentences like "AI clarity." -> "AI provides clarity."
+        """
+        # Split into sentences
+        sentences = split_sentences(text)
+        fixed_sentences = []
+        
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+            
+            # Check for incomplete patterns
+            # Pattern: "AI clarity." or "AI communication." -> "AI provides clarity."
+            incomplete_pattern = re.match(r'^AI\s+(clarity|communication|coordination|focus|support|guidance|information|updates|decisions|options)\.?$', sentence, re.IGNORECASE)
+            if incomplete_pattern:
+                noun = incomplete_pattern.group(1).lower()
+                # Convert to complete sentence
+                if noun == "clarity":
+                    sentence = "AI provides clarity."
+                elif noun == "communication":
+                    sentence = "AI enables communication."
+                elif noun == "coordination":
+                    sentence = "AI supports coordination."
+                elif noun == "focus":
+                    sentence = "AI helps maintain focus."
+                elif noun == "support":
+                    sentence = "AI provides support."
+                elif noun == "guidance":
+                    sentence = "AI offers guidance."
+                elif noun == "information":
+                    sentence = "AI organizes information."
+                elif noun == "updates":
+                    sentence = "AI delivers updates."
+                elif noun == "decisions":
+                    sentence = "AI supports decisions."
+                elif noun == "options":
+                    sentence = "AI presents options."
+            
+            fixed_sentences.append(sentence)
+        
+        return " ".join(fixed_sentences)
+    
+    def _enforce_sentence_count_and_format(self, body: str, platform: str) -> str:
+        """
+        Ensure body matches training data format:
+        - 4-6 sentences (varies slightly by platform)
+        - Ends with a STATEMENT (not a question)
+        - Fixes incomplete sentences
+        """
+        # Fix incomplete sentences first (like "AI clarity." -> "AI provides clarity.")
+        body = self._fix_incomplete_sentences(body)
 
-    def _enforce_one_question_and_length(self, body: str, platform: str) -> str:
-        """
-        Ensure body ends with exactly one question and meets length requirements.
-        """
         # Extract clean body (removes footer/hashtags) using validation utils
         extracted = extract_body_result(body)
         body_clean = extracted.body
 
-        # Use validation utility to ensure exactly one question at end
-        body_clean = ensure_exactly_one_question_at_end(body_clean)
+        # Ensure ends with statement (training data has NO questions)
+        body_clean = ensure_ends_with_statement(body_clean)
+
+        # Get platform-specific sentence count range
+        min_sentences, max_sentences = get_sentence_count_range(platform)
 
         # Enforce sentence count by platform
         sentences = split_sentences(body_clean)
-        if platform in ("twitter", "x"):
-            # Twitter: 1-2 sentences max
-            if len(sentences) > 2:
-                body_clean = " ".join(sentences[:1]).rstrip(".,!") + "?"
-        elif platform == "linkedin":
-            # LinkedIn: 6-10 sentences
-            if len(sentences) > 10:
-                body_clean = " ".join(sentences[:9]).rstrip(".,!") + "?"
-            elif len(sentences) < 6:
-                # Too short, but don't fail - just log
-                logger.warning("LinkedIn post has only %d sentences (target: 6-10)", len(sentences))
-        elif platform == "instagram":
-            # Instagram: 2-5 paragraphs (roughly 2-5 sentences per paragraph)
-            if len(sentences) > 25:
-                body_clean = " ".join(sentences[:24]).rstrip(".,!") + "?"
-        else:
-            # Facebook: 4-6 sentences
-            if len(sentences) > 6:
-                body_clean = " ".join(sentences[:5]).rstrip(".,!") + "?"
-            elif len(sentences) < 4:
-                # Too short - regenerate
-                raise ValueError(f"Body too short: {len(sentences)} sentences (need 4-6). Regenerate.")
+
+        if len(sentences) > max_sentences:
+            # Trim to max, ensure ends with period
+            body_clean = " ".join(sentences[:max_sentences])
+            if not body_clean.endswith("."):
+                body_clean = body_clean.rstrip(".,!?") + "."
+            logger.info("Trimmed post from %d to %d sentences for %s", len(sentences), max_sentences, platform)
+        elif len(sentences) < min_sentences:
+            # Too short - log warning but don't fail (trust the model)
+            logger.warning("%s post has only %d sentences (target: %d-%d)", platform, len(sentences), min_sentences, max_sentences)
+
+        # Final check: ensure ends with period, not question mark
+        if body_clean.endswith("?"):
+            body_clean = body_clean.rstrip("?") + "."
 
         return body_clean.strip()
+
+    # Keep old name for backward compatibility
+    def _enforce_one_question_and_length(self, body: str, platform: str) -> str:
+        """DEPRECATED: Use _enforce_sentence_count_and_format instead."""
+        return self._enforce_sentence_count_and_format(body, platform)
 
     def _append_footer(self, body: str, platform: str) -> str:
         """
         Append footer in code (never ask model to do it).
+        Footer format matches training data exactly:
+
+        [body text]
+
+        Real-world systems. Real clarity.
+        — Elevare by Amaziah
         """
         # Remove any existing footer if model accidentally added it
         if SIGNATURE in body:
             body = body.split(SIGNATURE)[0].strip()
         if INSIGHTS_LINE in body:
             body = body.split(INSIGHTS_LINE)[0].strip()
+        if TAGLINE in body:
+            body = body.split(TAGLINE)[0].strip()
 
-        # Append footer
-        footer = f"\n\n{SIGNATURE}\n{INSIGHTS_LINE}"
+        # Remove partial footer text from training examples
+        if "Real-world systems. Real clarity." in body:
+            body = body.split("Real-world systems. Real clarity.")[0].strip()
+
+        # Append footer in EXACT training data format
+        # Training format: tagline on its own line, then signature
+        footer = f"\n\n{TAGLINE}\n{SIGNATURE}"
         return body + footer
 
     def _ensure_hashtags(self, context: Dict[str, Any], platform: str) -> List[str]:
         """
-        Generate/ensure hashtags in code.
-        Uses domain from context or lens_plan, not trend data (fine-tuned model generates content itself).
+        Generate/ensure EXACTLY 4 hashtags (matches training data).
+        Training data shows exactly 4 hashtags on every post.
         """
         hashtags = []
-        
-        # Try to get hashtags from context directly (not from trend)
+
+        # Try to get hashtags from context directly
         hashtags = context.get("hashtags", []) or []
-        
+
         # If no hashtags provided, determine from domain (from lens_plan or context)
         if not hashtags:
             domain = ""
             # Check lens_plan first (most reliable)
             lens_plan = context.get("lens_plan") or {}
             domain = (lens_plan.get("domain") or "").lower()
-            
+
             # Fall back to context domain if lens_plan doesn't have it
             if not domain:
                 domain = (context.get("domain") or "").lower()
-            
-            # Domain-based hashtags (aligned with trained domains)
+
+            # Domain-based hashtags (aligned with training data patterns)
+            # Training data hashtags follow pattern: #DomainSpecific #ConceptName #ClarityMatters #RealWorldAI
             if "foreclosure" in domain:
-                hashtags = ["#ForeclosureSupport", "#Homeowners", "#Housing", "#ProcessClarity", "#SystemDesign"]
-            elif "assisted living" in domain or "assisted" in domain or "senior" in domain:
-                hashtags = ["#AssistedLiving", "#Caregiving", "#SeniorCare", "#RealWorldAI", "#SystemDesign"]
+                hashtags = ["#RealWorldAI", "#HousingStability", "#ProcessClarity", "#SystemDesign"]
+            elif "assisted living" in domain or "assisted" in domain or "care" in domain or "senior" in domain:
+                hashtags = ["#CareOperations", "#ResidentMatching", "#ClarityMatters", "#RealWorldAI"]
             elif "trading" in domain or "futures" in domain:
-                hashtags = ["#FuturesTrading", "#RiskManagement", "#TradingDiscipline", "#RealWorldAI", "#SystemDesign"]
+                hashtags = ["#TradingSystems", "#ExecutionFocus", "#RiskDiscipline", "#RealWorldAI"]
             else:
                 # Default hashtags (aligned with training data)
-                hashtags = ["#RealWorldAI", "#SystemDesign", "#ProcessClarity", "#HousingStability"]
+                hashtags = ["#RealWorldAI", "#SystemDesign", "#ProcessClarity", "#ClarityMatters"]
 
-        # Platform-specific limits
-        if platform in ("twitter", "x"):
-            hashtags = hashtags[:2]  # Max 2 for Twitter
-        elif platform == "linkedin":
-            hashtags = hashtags[:5]  # Max 5 for LinkedIn
-        elif platform == "instagram":
-            hashtags = hashtags[:8]  # Max 8 for Instagram
-        else:
-            hashtags = hashtags[:3]  # Max 3 for Facebook
+        # CRITICAL: Training data shows EXACTLY 4 hashtags
+        # Enforce exactly 4 hashtags regardless of platform
+        HASHTAG_COUNT = 4
+
+        if len(hashtags) > HASHTAG_COUNT:
+            hashtags = hashtags[:HASHTAG_COUNT]
+        elif len(hashtags) < HASHTAG_COUNT:
+            # Pad with default hashtags if needed
+            default_fillers = ["#RealWorldAI", "#SystemDesign", "#ClarityMatters", "#ProcessClarity"]
+            for filler in default_fillers:
+                if len(hashtags) >= HASHTAG_COUNT:
+                    break
+                if filler not in hashtags and f"#{filler.lstrip('#')}" not in hashtags:
+                    hashtags.append(filler)
 
         # Ensure all have # prefix
-        return [f"#{tag.lstrip('#')}" for tag in hashtags if tag]
+        return [f"#{tag.lstrip('#')}" for tag in hashtags[:HASHTAG_COUNT] if tag]
 
     # -------------------------
     # Image prompt (kept for compatibility)

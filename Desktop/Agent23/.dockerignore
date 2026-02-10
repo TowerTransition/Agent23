@@ -1,0 +1,14 @@
+.env
+.git
+.gitignore
+.claude/
+__pycache__
+*.pyc
+*.egg-info
+logs/
+*.json.bak
+*.tmp
+*.jpg
+*.png
+venv/
+.venv/

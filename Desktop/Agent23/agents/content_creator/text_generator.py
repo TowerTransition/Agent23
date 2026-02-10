@@ -317,15 +317,15 @@ Real-world systems. Real clarity.
         if not title:
             title = "AI in real-world workflows"
 
-        # For fine-tuned model: use training format labels only.
-        # The model was trained on CONTEXT/PROBLEM/AI_SUPPORT/REINFORCEMENT.
-        # No instructional English — it gets echoed verbatim in output.
+        # For fine-tuned model: minimal prompt, NO labels.
+        # The model was trained on plain text posts (no CONTEXT/PROBLEM labels).
+        # Just give it a topic and let it generate in trained style.
         if self.use_direct_model:
-            parts = [f"CONTEXT: {title}"]
+            # Simple topic prompt - model generates full post in trained format
+            topic = title
             if desc:
-                parts.append(f"PROBLEM: {desc}")
-            parts.append("AI_SUPPORT:")
-            return "\n".join(parts)
+                topic = f"{title} - {desc}"
+            return f"Write a post about: {topic}"
 
         # For HTTP endpoint (not fine-tuned): include example
         parts = []
@@ -373,11 +373,10 @@ Real-world systems. Real clarity.
         return "Write 4-6 sentences. End with a statement."
 
     def _system_message(self, platform: str) -> str:
-        # For fine-tuned model: identity only, no instructions.
-        # The model echoes any instructional text. The training format
-        # (CONTEXT/PROBLEM/AI_SUPPORT/REINFORCEMENT) drives structure instead.
+        # For fine-tuned model: minimal system message.
+        # Model was trained on plain text posts - it knows the format.
         if self.use_direct_model:
-            return "You are Elevare by Amaziah."
+            return "You write social media posts for Elevare by Amaziah. Write only the post text, nothing else."
 
         # For HTTP endpoint (not fine-tuned): more detailed instructions
         # NOTE: Training data shows NO questions - all posts end with statements
